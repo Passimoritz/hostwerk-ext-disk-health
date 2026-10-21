@@ -10,7 +10,7 @@ The state of every drive at a glance: temperature, wear, read and write errors a
 
 - **Where:** System → Drive health and the dashboard tile – no own sidebar entry since 1.2.0; the full page stays under Extensions → Open
 - **Status bar** on top: all drives healthy, needs attention or in danger – with the last and next check, the age of the administrator values and the buttons *Check now* and *Check with admin rights*
-- **One card per drive** in a grid: model, kind (NVMe/SATA SSD, hard disk, USB), size and state; big key figures – temperature with traffic light, wear as a ring, estimated life left, power-on time (hard disks: reallocated sectors and errors instead); data written/read, spare, power cycles, unsafe shutdowns, every error counter; temperature and wear trend
+- **One card per drive** in a grid: model, kind (NVMe/SATA SSD, hard disk, USB), size and state; key figures in Hostwerk's stat style – temperature with traffic light, wear with bar, estimated life left, power-on time (hard disks: reallocated sectors and errors instead); data written/read, spare, power cycles, unsafe shutdowns, every error counter; temperature and wear trend
 - **Details** per drive: every S.M.A.R.T. value as a table (current, worst, limit, raw value) with an explanation per row; values below the manufacturer's limit are marked
 - Problems in plain words – “Reallocated sectors rose from 2 to 8.” instead of attribute numbers
 - Warns when error counters **grow** (reallocated, pending and unreadable sectors, media errors → danger; read/write and cable errors → attention), when a drive gets too warm or wears out, when an attribute drops below the manufacturer's limit and when the drive itself reports a problem

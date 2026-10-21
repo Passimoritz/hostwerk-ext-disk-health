@@ -1,4 +1,4 @@
-/* Drive health 1.1: status bar, compact hints, drive cards with key figures, wear ring, trends, details table, tile */
+/* Drive health 1.2.1: status bar, compact hints, drive cards with key figures, wear ring, trends, details table, tile */
 
 /* Tones: text colours with enough contrast in both designs */
 .dh-tone-ok { --dh-tone: var(--ok-text); --dh-tone-line: var(--ok); }
@@ -33,17 +33,15 @@
 .dh-hint-text { flex: 1 1 260px; min-width: 0; color: var(--text); }
 .dh-hint .btn { margin-left: auto; }
 
-/* ---------- Drive cards ---------- */
-.dh-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); gap: var(--sp-4); align-items: start; }
-.dh-card { display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-4); min-width: 0; }
+/* ---------- Drive cards: Hostwerk's .card/.card-head/.card-body and .stat – only the arrangement is ours ---------- */
+/* auto-fit (not auto-fill): one drive takes the whole width instead of a 380 px column next to empty tracks */
+.dh-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr)); gap: var(--sp-4); align-items: start; }
+.dh-card { min-width: 0; display: flex; flex-direction: column; }
 .dh-card.dh-lv-warn { border-color: var(--warn); }
 .dh-card.dh-lv-err { border-color: var(--err); }
-.dh-card-top { display: flex; align-items: center; gap: var(--sp-3); min-width: 0; }
-.dh-drive-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: var(--r-md); background: var(--accent-soft); color: var(--accent-text); flex-shrink: 0; }
-.dh-title { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.dh-title h3 { margin: 0; font-size: var(--fs-lg); font-weight: 650; }
-.dh-kind { font-size: var(--fs-sm); color: var(--muted); }
-.dh-badge { font-size: var(--fs-xs); padding: 2px var(--sp-2); flex-shrink: 0; }
+.dh-title { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.dh-title h3 { overflow-wrap: anywhere; }
+.dh-body { gap: var(--sp-3); }
 
 .dh-problems { list-style: none; margin: 0; padding: var(--sp-2) var(--sp-3); display: flex; flex-direction: column; gap: var(--sp-1); border-radius: var(--r-md); background: var(--warn-soft); }
 .dh-card.dh-lv-err .dh-problems { background: var(--err-soft); }
@@ -52,28 +50,28 @@
 .dh-problem-err svg { color: var(--err-text); }
 .dh-problem-warn svg { color: var(--warn-text); }
 
-.dh-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-2); }
-.dh-kpi { display: flex; flex-direction: column; gap: var(--sp-1); padding: var(--sp-3); border-radius: var(--r-md); background: var(--surface-2); border: 1px solid var(--line); min-width: 0; }
-.dh-kpi[class*='dh-tone-'] { border-top: 3px solid var(--dh-tone-line); }
-.dh-kpi-label { display: flex; align-items: center; gap: var(--sp-1); font-size: var(--fs-xs); color: var(--muted); font-weight: 600; min-height: 22px; }
-.dh-kpi-label svg { flex-shrink: 0; }
-.dh-kpi-value { font-size: var(--fs-xl); font-weight: 650; line-height: 1.2; font-variant-numeric: tabular-nums; color: var(--dh-tone, var(--text)); overflow-wrap: anywhere; }
-.dh-kpi-sub { font-size: var(--fs-xs); color: var(--muted); }
+/* Key figures: as many columns as fit, never squeezed – labels wrap instead of being cut, words are never split */
+.dh-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--sp-2); }
+.dh-stat { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-lg); padding: var(--sp-3) var(--sp-4); min-width: 0; display: flex; flex-direction: column; gap: var(--sp-1); hyphens: none; }
+.dh-stat[class*='dh-tone-'] { box-shadow: inset 0 3px 0 var(--dh-tone-line); }
+.dh-stat .k { flex-wrap: wrap; align-items: center; }
+.dh-stat .k > svg { flex-shrink: 0; }
+.dh-stat-label { min-width: 0; overflow-wrap: normal; }
+.dh-stat .k .info-tip { flex-shrink: 0; }
+.dh-stat .v { margin-top: 0; color: var(--dh-tone, var(--text)); white-space: nowrap; }
+.dh-stat-note { font-size: var(--fs-sm); font-weight: 600; color: var(--text-2); line-height: 1.35; padding: var(--sp-1) 0; overflow-wrap: normal; }
+.dh-stat .s { line-height: 1.35; }
+.dh-bar { height: 6px; margin: 2px 0; }
+.dh-bar > div { background: var(--accent); }
+.dh-stat.dh-tone-warn .dh-bar > div { background: var(--warn); }
+.dh-stat.dh-tone-err .dh-bar > div { background: var(--err); }
 
-.dh-ring { display: block; }
-.dh-ring-track { fill: none; stroke: var(--line-2); stroke-width: 6; }
-.dh-ring-fill { fill: none; stroke: var(--dh-tone-line, var(--accent)); stroke-width: 6; stroke-linecap: round; }
-.dh-ring.dh-tone-ok .dh-ring-fill { stroke: var(--accent); }
-.dh-ring-text { font-size: var(--fs-xs); font-weight: 700; fill: var(--text); }
-
-.dh-more { display: flex; flex-direction: column; gap: var(--sp-3); }
-.dh-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-1) var(--sp-4); margin: 0; font-size: var(--fs-sm); }
-.dh-facts div { display: flex; justify-content: space-between; gap: var(--sp-2); min-width: 0; padding: 2px 0; border-bottom: 1px solid var(--line); }
+.dh-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--sp-1) var(--sp-5); margin: 0; font-size: var(--fs-sm); }
+.dh-facts div { display: flex; justify-content: space-between; gap: var(--sp-2); min-width: 0; padding: 3px 0; border-bottom: 1px solid var(--line); }
 .dh-facts dt { color: var(--muted); min-width: 0; }
 .dh-facts dd { margin: 0; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .dh-trends { display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-5); }
 .dh-trend { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-xs); color: var(--muted); }
-.dh-trend-label { min-width: 0; }
 .dh-trend-range { font-variant-numeric: tabular-nums; color: var(--text-2); }
 
 .dh-admin-cta { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3); border-radius: var(--r-md); border: 1px dashed var(--line-2); background: var(--surface-2); flex-wrap: wrap; }
@@ -81,12 +79,13 @@
 .dh-admin-cta-text { flex: 1 1 200px; display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-sm); color: var(--text-2); }
 .dh-admin-cta-text b { color: var(--text); }
 
-.dh-card-foot { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; padding-top: var(--sp-2); border-top: 1px solid var(--line); min-height: 32px; }
-.dh-toggle svg { transition: transform .15s; }
-.dh-toggle .dh-rot { transform: rotate(180deg); }
-.dh-foot-meta { flex: 1; font-size: var(--fs-xs); color: var(--muted); min-width: 0; }
-.dh-serial { max-width: 50%; color: var(--muted); font-size: var(--fs-xs); gap: var(--sp-1); }
-.dh-serial .mono { min-width: 0; }
+/* Foot: details, "read …", serial – items wrap as a whole, nothing lies on top of anything else */
+.dh-card-foot { display: flex; align-items: center; gap: var(--sp-1) var(--sp-3); flex-wrap: wrap; padding: var(--sp-2) var(--sp-4); border-top: 1px solid var(--line); margin-top: auto; }
+.dh-card-foot .btn svg { transition: transform .15s; }
+.dh-card-foot .dh-rot { transform: rotate(180deg); }
+.dh-foot-meta { font-size: var(--fs-xs); color: var(--muted); white-space: nowrap; }
+.dh-serial { margin-left: auto; max-width: 100%; min-width: 0; color: var(--muted); font-size: var(--fs-xs); gap: var(--sp-1); }
+.dh-serial .mono { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .dh-attrs-wrap { max-height: 420px; border: 1px solid var(--line); border-radius: var(--r-md); }
 .dh-attrs th[scope='row'] { font-weight: 400; text-align: left; padding: var(--sp-2) var(--sp-3); border-bottom: 1px solid var(--line); }
@@ -109,8 +108,6 @@
 .dh-skel { height: 96px; border-radius: var(--r-md); }
 
 @media (max-width: 720px) {
-  .dh-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .dh-facts { grid-template-columns: 1fr; }
   .dh-status-actions { width: 100%; }
 }
-@media (prefers-reduced-motion: reduce) { .dh-toggle svg { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .dh-card-foot .btn svg { transition: none; } }

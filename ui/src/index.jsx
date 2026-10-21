@@ -65,25 +65,17 @@ const reasonText = (r) => (r.reason === 'error' && r.error ? r.error : t(REASON[
 
 /* ---------------- Building blocks ---------------- */
 
-/** Ring for wear – the filled part is what is used up. */
-function WearRing({ pct, tone }) {
-  const r = 22; const c = 2 * Math.PI * r;
+/**
+ * One key figure in Hostwerk's own stat style (.stat with .k label, .v value, .s line – like System → Resources).
+ * The ⓘ sits behind the label; a text instead of a number (e.g. "Too early to say") comes as a note in normal size.
+ */
+function Stat({ icon: Icon, label, value, note, sub, tone, tip, bar }) {
   return (
-    <svg className={`dh-ring dh-tone-${tone || 'ok'}`} viewBox="0 0 56 56" width="56" height="56" aria-hidden="true">
-      <circle className="dh-ring-track" cx="28" cy="28" r={r} />
-      <circle className="dh-ring-fill" cx="28" cy="28" r={r} strokeDasharray={`${(c * Math.max(0, Math.min(100, pct))) / 100} ${c}`} transform="rotate(-90 28 28)" />
-      <text x="28" y="32" textAnchor="middle" className="dh-ring-text">{`${pct}%`}</text>
-    </svg>
-  );
-}
-
-/** One big key figure: label (with optional ⓘ), value, small line below. */
-function Kpi({ icon: Icon, label, value, sub, tone, tip, children }) {
-  return (
-    <div className={`dh-kpi ${tone ? `dh-tone-${tone}` : ''}`}>
-      <span className="dh-kpi-label"><Icon size={14} aria-hidden="true" />{label}{tip && <InfoTip pop title={label}>{tip}</InfoTip>}</span>
-      {children || <b className="dh-kpi-value">{value}</b>}
-      {sub && <span className="dh-kpi-sub">{sub}</span>}
+    <div className={`stat dh-stat${tone ? ` dh-tone-${tone}` : ''}`}>
+      <div className="k"><Icon aria-hidden="true" /><span className="dh-stat-label">{label}</span>{tip && <InfoTip pop title={label}>{tip}</InfoTip>}</div>
+      {has(value) ? <div className="v">{value}</div> : <div className="dh-stat-note">{note || t('Not reported')}</div>}
+      {has(bar) && <div className="progress dh-bar" role="progressbar" aria-label={label} aria-valuenow={bar} aria-valuemin={0} aria-valuemax={100}><div style={{ width: `${Math.max(2, Math.min(100, bar))}%` }} /></div>}
+      {sub && <div className="s">{sub}</div>}
     </div>
   );
 }
@@ -169,13 +161,17 @@ function DriveCard({ d, limits, onRefresh, onAdmin, canElevate }) {
   const wears = (d.history || []).map((h) => h.wearPct).filter(has);
   const errors = errorSum(d);
   const kind = [t(MEDIA[d.media] || 'Drive'), d.bus === 'USB' ? 'USB' : null, d.sizeBytes ? fmtBytes(d.sizeBytes) : null].filter(Boolean).join(' · ');
+  // Windows' reliability counters leave some values out for many drives (e.g. power-on hours of NVMe SSDs) – say who is silent
+  const silent = d.source === 'windows' ? t('Windows does not report it') : t('Not reported');
+  const silentSub = d.source === 'windows' && d.smartAt ? t('smartmontools can read it') : null;
   const menu = (e) => contextMenu(e, [
     d.serial && { label: t('Copy serial number'), icon: Copy, onClick: () => copy(d.serial) },
     { label: t('Check now'), icon: RefreshCw, onClick: onRefresh },
     canElevate && { label: t('Check with admin rights'), icon: ShieldCheck, onClick: onAdmin },
   ]);
   const life = d.life;
-  const lifeText = !has(d.wearPct) ? '–' : !life ? t('Too early to say') : life.years === 0 ? t('Worn out') : life.years > 20 ? t('More than 20 years') : t('≈ {n} years', { n: life.years.toLocaleString(undefined, { maximumFractionDigits: life.years < 3 ? 1 : 0 }) });
+  const lifeValue = life && life.years > 0 ? (life.years > 20 ? t('> 20 years') : t('≈ {n} years', { n: life.years.toLocaleString(undefined, { maximumFractionDigits: life.years < 3 ? 1 : 0 }) })) : null;
+  const lifeNote = !has(d.wearPct) ? silent : life && life.years === 0 ? t('Worn out') : t('Too early to say');
   const facts = [
     has(d.dataWrittenBytes) && ['Data written', fmtBytes(d.dataWrittenBytes)],
     has(d.dataReadBytes) && ['Data read', fmtBytes(d.dataReadBytes)],
@@ -186,111 +182,105 @@ function DriveCard({ d, limits, onRefresh, onAdmin, canElevate }) {
   ].filter(Boolean);
   return (
     <article className={`card dh-card dh-lv-${d.level}`} onContextMenu={menu} aria-label={d.name}>
-      <div className="dh-card-top">
-        <span className="dh-drive-icon" aria-hidden="true">{d.bus === 'USB' ? <Usb size={20} /> : <HardDrive size={20} />}</span>
-        <div className="dh-title">
-          <h3 className="ellipsis" title={d.name}>{d.name}</h3>
-          <span className="dh-kind">{kind}</span>
+      <div className="card-head">
+        {d.bus === 'USB' ? <Usb size={16} aria-hidden="true" /> : <HardDrive size={16} aria-hidden="true" />}
+        <div className="grow dh-title">
+          <h3 title={d.name}>{d.name}</h3>
+          <span className="sub">{kind}</span>
         </div>
-        <span className={`badge ${lv.badge} dh-badge`}><lv.icon size={13} aria-hidden="true" />{t(lv.label)}</span>
+        <div className="right"><span className={`badge ${lv.badge}`}><lv.icon size={12} aria-hidden="true" />{t(lv.label)}</span></div>
       </div>
 
-      {d.problems && d.problems.length > 0 && (
-        <ul className="dh-problems">
-          {d.problems.map((p) => (
-            <li key={p.code} className={p.level === 'err' ? 'dh-problem-err' : 'dh-problem-warn'}>
-              {p.level === 'err' ? <XCircle size={15} aria-hidden="true" /> : <AlertTriangle size={15} aria-hidden="true" />}
-              <span>{describe(p, t)}</span>
-            </li>
-          ))}
-        </ul>
-      )}
+      <div className="card-body stack dh-body">
+        {d.problems && d.problems.length > 0 && (
+          <ul className="dh-problems">
+            {d.problems.map((p) => (
+              <li key={p.code} className={p.level === 'err' ? 'dh-problem-err' : 'dh-problem-warn'}>
+                {p.level === 'err' ? <XCircle size={15} aria-hidden="true" /> : <AlertTriangle size={15} aria-hidden="true" />}
+                <span>{describe(p, t)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
 
-      {smart ? (
-        <>
-          <div className="dh-kpis">
-            <Kpi icon={Thermometer} label={t('Temperature')} tone={tTone}
-              value={has(d.tempC) ? `${d.tempC} °C` : '–'}
-              sub={!has(d.tempC) ? t('Not reported') : d.tempStale ? t('measured {when}', { when: rel(d.smartAt) }) : t('warns from {n} °C', { n: limits.tempWarn })}
-              tip={d.tempMaxC ? t('The drive itself reports {n} °C as its upper limit.', { n: d.tempMaxC }) : null} />
-            {ssd ? (
-              <Kpi icon={Activity} label={t('Wear')} tone={wTone} sub={has(d.wearPct) ? t('warns from {n} %', { n: limits.wearWarn }) : t('Not reported')}
-                tip={t('How much of the rated write volume of an SSD is used up. 100 % does not mean it dies, but it should be replaced soon after.')}>
-                {has(d.wearPct) ? <WearRing pct={d.wearPct} tone={wTone} /> : <b className="dh-kpi-value">–</b>}
-              </Kpi>
-            ) : (
-              <Kpi icon={AlertTriangle} label={t('Reallocated sectors')} tone={has(d.reallocated) && d.reallocated > 0 ? 'warn' : has(d.reallocated) ? 'ok' : null}
-                value={has(d.reallocated) ? fmtNumber(d.reallocated) : '–'} sub={has(d.pending) ? t('{n} waiting', { n: fmtNumber(d.pending) }) : null}
-                tip={t(ATTR_INFO['ata:5'])} />
-            )}
-            {ssd ? (
-              <Kpi icon={Hourglass} label={t('Life left')} value={lifeText}
-                sub={life && life.basis === 'trend' ? t('from the trend of the last weeks') : life ? t('from the wear so far') : null}
-                tip={t('A rough estimate at the same use – from how fast the wear grew so far. It says nothing about sudden failures, so keep backups anyway.')} />
-            ) : (
-              <Kpi icon={AlertTriangle} label={t('Errors')} tone={has(errors) ? (errors > 0 ? 'warn' : 'ok') : null} value={has(errors) ? fmtNumber(errors) : '–'}
-                sub={has(errors) ? t('all error counters together') : t('Not reported')} />
-            )}
-            <Kpi icon={Clock} label={t('Power-on time')} value={has(d.powerOnHours) ? `${fmtNumber(d.powerOnHours)} h` : '–'}
-              sub={has(d.powerOnHours) && d.powerOnHours >= 48 ? pl(Math.round(d.powerOnHours / 24), '≈ {n} day', '≈ {n} days') : null} />
-          </div>
-
-          {(facts.length > 0 || temps.length > 1 || wears.length > 1) && (
-            <div className="dh-more">
-              {facts.length > 0 && (
-                <dl className="dh-facts">
-                  {facts.map(([k, v]) => <div key={k}><dt>{t(k)}</dt><dd>{v}</dd></div>)}
-                </dl>
+        {smart ? (
+          <>
+            <div className="dh-stats">
+              <Stat icon={Thermometer} label={t('Temperature')} tone={tTone} value={has(d.tempC) ? `${d.tempC} °C` : null} note={silent}
+                sub={!has(d.tempC) ? silentSub : d.tempStale ? t('measured {when}', { when: rel(d.smartAt) }) : t('warns from {n} °C', { n: limits.tempWarn })}
+                tip={d.tempMaxC ? t('The drive itself reports {n} °C as its upper limit.', { n: d.tempMaxC }) : null} />
+              {ssd ? (
+                <Stat icon={Activity} label={t('Wear')} tone={wTone} value={has(d.wearPct) ? `${d.wearPct} %` : null} note={silent} bar={d.wearPct}
+                  sub={has(d.wearPct) ? t('warns from {n} %', { n: limits.wearWarn }) : silentSub}
+                  tip={t('How much of the rated write volume of an SSD is used up. 100 % does not mean it dies, but it should be replaced soon after.')} />
+              ) : (
+                <Stat icon={AlertTriangle} label={t('Reallocated sectors')} tone={has(d.reallocated) ? (d.reallocated > 0 ? 'warn' : 'ok') : null}
+                  value={has(d.reallocated) ? fmtNumber(d.reallocated) : null} note={silent} sub={has(d.pending) ? t('{n} waiting', { n: fmtNumber(d.pending) }) : silentSub}
+                  tip={t(ATTR_INFO['ata:5'])} />
               )}
-              {(temps.length > 1 || wears.length > 1) && (
-                <div className="dh-trends">
-                  {temps.length > 1 && (
-                    <div className="dh-trend" title={t('Temperature over the last {n} readings', { n: temps.length })}>
-                      <span className="dh-trend-label">Temperature</span>
-                      <Sparkline data={temps} width={140} height={28} color="var(--accent-2)" />
-                      <span className="dh-trend-range">{`${Math.min(...temps)}–${Math.max(...temps)} °C`}</span>
-                    </div>
-                  )}
-                  {wears.length > 1 && Math.max(...wears) > Math.min(...wears) && (
-                    <div className="dh-trend" title={t('Wear over the last {n} readings', { n: wears.length })}>
-                      <span className="dh-trend-label">Wear</span>
-                      <Sparkline data={wears} width={140} height={28} color="var(--accent)" max={100} />
-                      <span className="dh-trend-range">{`${Math.min(...wears)}–${Math.max(...wears)} %`}</span>
-                    </div>
-                  )}
-                </div>
+              {ssd ? (
+                <Stat icon={Hourglass} label={t('Life left')} tone={life && life.years === 0 ? 'err' : null} value={lifeValue} note={lifeNote}
+                  sub={life && life.basis === 'trend' && lifeValue ? t('from the trend of the last weeks') : lifeValue ? t('from the wear so far') : null}
+                  tip={t('A rough estimate at the same use – from how fast the wear grew so far. It says nothing about sudden failures, so keep backups anyway.')} />
+              ) : (
+                <Stat icon={AlertTriangle} label={t('Errors')} tone={has(errors) ? (errors > 0 ? 'warn' : 'ok') : null} value={has(errors) ? fmtNumber(errors) : null} note={silent}
+                  sub={has(errors) ? t('all error counters together') : silentSub} />
               )}
+              <Stat icon={Clock} label={t('Power-on time')} value={has(d.powerOnHours) ? `${fmtNumber(d.powerOnHours)} h` : null} note={silent}
+                sub={has(d.powerOnHours) ? (d.powerOnHours >= 48 ? pl(Math.round(d.powerOnHours / 24), '≈ {n} day', '≈ {n} days') : null) : silentSub} />
             </div>
-          )}
-        </>
-      ) : (
-        <div className="dh-admin-cta">
-          <ShieldCheck size={18} aria-hidden="true" />
-          <div className="dh-admin-cta-text">
-            <b>Only the health status so far</b>
-            <span>Temperature, wear and error counters need administrator rights.</span>
+
+            {facts.length > 0 && (
+              <dl className="dh-facts">
+                {facts.map(([k, v]) => <div key={k}><dt>{t(k)}</dt><dd>{v}</dd></div>)}
+              </dl>
+            )}
+            {(temps.length > 1 || (wears.length > 1 && Math.max(...wears) > Math.min(...wears))) && (
+              <div className="dh-trends">
+                {temps.length > 1 && (
+                  <div className="dh-trend" title={t('Temperature over the last {n} readings', { n: temps.length })}>
+                    <span>Temperature</span>
+                    <Sparkline data={temps} width={140} height={28} color="var(--accent-2)" />
+                    <span className="dh-trend-range">{`${Math.min(...temps)}–${Math.max(...temps)} °C`}</span>
+                  </div>
+                )}
+                {wears.length > 1 && Math.max(...wears) > Math.min(...wears) && (
+                  <div className="dh-trend" title={t('Wear over the last {n} readings', { n: wears.length })}>
+                    <span>Wear</span>
+                    <Sparkline data={wears} width={140} height={28} color="var(--accent)" max={100} />
+                    <span className="dh-trend-range">{`${Math.min(...wears)}–${Math.max(...wears)} %`}</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="dh-admin-cta">
+            <ShieldCheck size={18} aria-hidden="true" />
+            <div className="dh-admin-cta-text">
+              <b>Only the health status so far</b>
+              <span>Temperature, wear and error counters need administrator rights.</span>
+            </div>
+            {canElevate && <Btn className="sm" icon={ShieldCheck} onClick={onAdmin}>Check with admin rights</Btn>}
           </div>
-          {canElevate && <Btn className="sm" icon={ShieldCheck} onClick={onAdmin}>Check with admin rights</Btn>}
-        </div>
-      )}
+        )}
+        {open && <div id={detailsId}><AttrTable d={d} /></div>}
+      </div>
 
       <div className="dh-card-foot">
         {d.attributes && d.attributes.length > 0 && (
-          <button type="button" className="btn ghost sm dh-toggle" aria-expanded={open} aria-controls={detailsId} onClick={() => setOpen(!open)}>
+          <button type="button" className="btn ghost sm" aria-expanded={open} aria-controls={detailsId} onClick={() => setOpen(!open)}>
             <ChevronDown size={14} className={open ? 'dh-rot' : undefined} aria-hidden="true" />
             {open ? t('Hide details') : pl(d.attributes.length, 'Show {n} value', 'Show all {n} values')}
           </button>
         )}
-        <span className="dh-foot-meta">
-          {d.smartAt ? t('Values read {when}', { when: rel(d.smartAt) }) : null}
-        </span>
+        {d.smartAt && <span className="dh-foot-meta">{t('Values read {when}', { when: rel(d.smartAt) })}</span>}
         {d.serial && (
           <button type="button" className="btn ghost sm dh-serial" title={t('Copy serial number')} aria-label={t('Copy serial number {serial}', { serial: d.serial })} onClick={() => copy(d.serial)}>
-            <span className="mono ellipsis">{d.serial}</span><Copy size={13} aria-hidden="true" />
+            <span className="mono">{d.serial}</span><Copy size={13} aria-hidden="true" />
           </button>
         )}
       </div>
-      {open && <div id={detailsId}><AttrTable d={d} /></div>}
     </article>
   );
 }
@@ -395,8 +385,7 @@ function DiskHealthPage() {
     <div className="page fade-in dh-page">
       <div className="page-head">
         <div>
-          <h1><Activity /> Drive health</h1>
-          <InfoTip title="Drive health">Hostwerk reads the S.M.A.R.T. values of every drive – temperature, wear, errors – and tells you when something gets worse. Nothing on a drive is ever changed.</InfoTip>
+          <h1><Activity /> Drive health <InfoTip pop title="Drive health">Hostwerk reads the S.M.A.R.T. values of every drive – temperature, wear, errors – and tells you when something gets worse. Nothing on a drive is ever changed.</InfoTip></h1>
         </div>
       </div>
       {st.error && <Callout kind="err" dismissible={false}>{st.error}</Callout>}

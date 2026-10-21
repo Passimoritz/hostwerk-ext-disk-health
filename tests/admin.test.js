@@ -222,3 +222,12 @@ test('Linux: ein pkexec-Lauf, smartctl je Gerät, fremde Gerätenamen fliegen ra
     { cmd: 'smartctl', args: ['-j', '-a', '/dev/sdc'] },
   ]);
 });
+
+test('NVMe ohne Betriebsstunden von Windows (wie Predator GM7): bleibt null, Quelle „windows“, nur gemeldete Werte in der Tabelle', () => {
+  const r = H.parseAdminResult(wrap({ v: 1, at: 9, admin: true, smart: [],
+    disks: [{ ...disks[0], Counters: { Temperature: 51, TemperatureMax: 84, Wear: 0, PowerOnHours: null, ReadErrorsUncorrected: null, WriteErrorsUncorrected: null } }] }));
+  const [d] = r.drives;
+  assert.deepStrictEqual([d.tempC, d.wearPct, d.powerOnHours, d.source, d.partial], [51, 0, null, 'windows', false]);
+  assert.deepStrictEqual(d.attributes.map((a) => a.key), ['win:Temperature', 'win:TemperatureMax', 'win:Wear']);
+  assert.strictEqual(H.estimateLife(d, []), null); // ohne Betriebsstunden keine Schätzung – „Noch zu früh“
+});
