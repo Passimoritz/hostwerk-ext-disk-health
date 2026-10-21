@@ -1,15 +1,20 @@
-import { useState } from 'react';
-import { Activity, HardDrive, RefreshCw, Thermometer, Gauge, Clock, Copy, AlertTriangle, CheckCircle2, HelpCircle, XCircle } from 'lucide-react';
-import { post, useApi, fmtBytes, fmtDate } from '@hostwerk/api';
-import { Btn, Empty, Loading, Callout, InfoTip, TileEmpty, Sparkline, toast } from '@hostwerk/ui';
+import { useEffect, useId, useState } from 'react';
+import {
+  Activity, HardDrive, RefreshCw, Thermometer, Clock, Copy, AlertTriangle, CheckCircle2, HelpCircle, XCircle, ShieldCheck, ChevronDown,
+  Hourglass, Bell, Download, Usb, Wrench,
+} from 'lucide-react';
+import { post, useApi, fmtBytes, fmtDate, fmtNumber } from '@hostwerk/api';
+import { Btn, Empty, Loading, Callout, InfoTip, TileEmpty, Sparkline, Switch, toast, confirmDialog } from '@hostwerk/ui';
 import { contextMenu } from '@hostwerk/kit';
-import { t } from '@hostwerk/i18n';
-import { describe, COUNTER_LABEL } from '../../server/texts';
+import { t, pl as hostPl } from '@hostwerk/i18n';
+import { describe, COUNTER_LABEL, ATTR_LABEL, ATTR_INFO } from '../../server/texts';
 import './style.css';
 
 /*
- * Drive health: one card per drive (state, temperature with trend, wear, power-on hours, error counters, plain-language
- * problems) and a dashboard tile with the worst drive first. Values the system does not reveal stay "–".
+ * Drive health, rebuilt (1.1): a status bar on top (overall state, last/next check, admin check, regular check), one card
+ * per drive in a grid (state, big key figures with traffic lights, wear ring, estimated life, trend, details table with
+ * every S.M.A.R.T. value) and a dashboard tile. Values the system does not reveal never show up as a lonely "–": without
+ * administrator values the card says so once and offers the check. Explanations live in ⓘ pop-ups.
  * Texts are English; German comes from locales/de.json (also inside JSX).
  */
 const LEVEL = {
@@ -19,100 +24,435 @@ const LEVEL = {
   unknown: { label: 'Unknown', icon: HelpCircle, badge: '' },
 };
 const RANK = { err: 0, warn: 1, unknown: 2, ok: 3 };
-const MEDIA = { nvme: 'NVMe SSD', ssd: 'SSD', hdd: 'Hard disk', unknown: 'Drive' };
-const NOTES = {
-  'needs-admin': ['Windows only reveals the health status to programs without administrator rights.', 'Temperature, wear and error counters appear when Hostwerk runs as administrator. The health status above is still reliable – Windows evaluates the drive’s own S.M.A.R.T. data for it.'],
-  'install-smartctl': ['Only the basics are visible right now.', 'Install smartmontools (package “smartmontools”, program smartctl) for wear, error counters and the drive’s own health status.'],
-  'smartctl-rights': ['smartctl may not open some drives.', 'Hostwerk needs read access to them, for example with: sudo setcap cap_sys_rawio,cap_sys_admin+ep $(command -v smartctl). The other drives are shown with the basics.'],
-};
+const MEDIA = { nvme: 'NVMe SSD', ssd: 'SATA SSD', hdd: 'Hard disk', unknown: 'Drive' };
+const COUNTERS = Object.keys(COUNTER_LABEL);
+const SETTINGS_HREF = '#/settings/meldungen';
 const byLevel = (a, b) => (RANK[a.level] ?? 2) - (RANK[b.level] ?? 2) || a.name.localeCompare(b.name);
-const hours = (h) => (h == null ? '–' : h >= 48 ? t('{n} days', { n: Math.round(h / 24).toLocaleString() }) : `${h.toLocaleString()} h`);
+const has = (v) => v !== null && v !== undefined;
+// pl() exists since SDK 2.10 (Hostwerk 2.12) – on older Hostwerk the same with t()
+const pl = (n, one, many, vars) => (typeof hostPl === 'function' ? hostPl(n, one, many, vars) : t(Number(n) === 1 ? one : many, { n, ...(vars || {}) }));
 
-function Fact({ icon: Icon, label, value, tip }) {
+/** "5 minutes ago" / "in 12 minutes" – rough, for the status bar. */
+function rel(ts) {
+  if (!ts) return null;
+  const diff = ts - Date.now();
+  const m = Math.round(Math.abs(diff) / 60000);
+  if (m < 1) return diff > 0 ? t('in a moment') : t('just now');
+  const [n, one, many] = m < 60 ? [m, '{n} minute', '{n} minutes'] : m < 2880 ? [Math.round(m / 60), '{n} hour', '{n} hours'] : [Math.round(m / 1440), '{n} day', '{n} days'];
+  const span = pl(n, one, many);
+  return diff > 0 ? t('in {span}', { span }) : t('{span} ago', { span });
+}
+const levelOfTemp = (d, limits) => {
+  if (!has(d.tempC)) return null;
+  const crit = d.tempMaxC ? Math.min(d.tempMaxC, limits.tempCrit + 15) : limits.tempCrit;
+  return d.tempC >= crit ? 'err' : d.tempC >= Math.min(limits.tempWarn, crit - 1) ? 'warn' : 'ok';
+};
+const levelOfWear = (w, limits) => (!has(w) ? null : w >= limits.wearCrit ? 'err' : w >= limits.wearWarn ? 'warn' : 'ok');
+const errorSum = (d) => { const v = COUNTERS.map((k) => d[k]).filter(has); return v.length ? v.reduce((a, b) => a + b, 0) : null; };
+
+/** What went wrong with an administrator action – one sentence for the toast. */
+const REASON = {
+  cancelled: 'The administrator prompt was cancelled – nothing was read.',
+  'not-admin': 'Windows did not grant administrator rights.',
+  'needs-update': 'Update Hostwerk (2.12 or newer) to check with administrator rights.',
+  'no-smartctl': 'Install smartmontools first – the check uses smartctl.',
+  'no-result': 'The check returned no values.',
+  busy: 'A check with administrator rights is already running.',
+  unsupported: 'Not available on this system.',
+  'no-winget': 'winget is missing – download smartmontools from smartmontools.org.',
+};
+const reasonText = (r) => (r.reason === 'error' && r.error ? r.error : t(REASON[r.reason] || 'That did not work.'));
+
+/* ---------------- Building blocks ---------------- */
+
+/** Ring for wear – the filled part is what is used up. */
+function WearRing({ pct, tone }) {
+  const r = 22; const c = 2 * Math.PI * r;
   return (
-    <div className="dh-fact">
-      <span className="tiny muted row-tight"><Icon size={13} aria-hidden="true" />{label}{tip && <InfoTip inline title={label}>{tip}</InfoTip>}</span>
-      <b>{value}</b>
+    <svg className={`dh-ring dh-tone-${tone || 'ok'}`} viewBox="0 0 56 56" width="56" height="56" aria-hidden="true">
+      <circle className="dh-ring-track" cx="28" cy="28" r={r} />
+      <circle className="dh-ring-fill" cx="28" cy="28" r={r} strokeDasharray={`${(c * Math.max(0, Math.min(100, pct))) / 100} ${c}`} transform="rotate(-90 28 28)" />
+      <text x="28" y="32" textAnchor="middle" className="dh-ring-text">{`${pct}%`}</text>
+    </svg>
+  );
+}
+
+/** One big key figure: label (with optional ⓘ), value, small line below. */
+function Kpi({ icon: Icon, label, value, sub, tone, tip, children }) {
+  return (
+    <div className={`dh-kpi ${tone ? `dh-tone-${tone}` : ''}`}>
+      <span className="dh-kpi-label"><Icon size={14} aria-hidden="true" />{label}{tip && <InfoTip pop title={label}>{tip}</InfoTip>}</span>
+      {children || <b className="dh-kpi-value">{value}</b>}
+      {sub && <span className="dh-kpi-sub">{sub}</span>}
     </div>
   );
 }
 
-function DriveCard({ d, onRefresh }) {
+/** Compact hint with one action – instead of big info banners. */
+function Hint({ icon: Icon = ShieldCheck, tone = 'info', children, action, tip, tipTitle }) {
+  return (
+    <div className={`dh-hint dh-hint-${tone}`} role="note">
+      <Icon size={16} aria-hidden="true" />
+      <span className="dh-hint-text">{children}</span>
+      {tip && <InfoTip pop title={tipTitle}>{tip}</InfoTip>}
+      {action}
+    </div>
+  );
+}
+
+function copy(text) {
+  navigator.clipboard.writeText(text).then(() => toast.success('Copied')).catch(() => toast.error('Could not copy'));
+}
+
+/** All S.M.A.R.T. values of a drive with an explanation per row. */
+function AttrTable({ d }) {
+  const list = d.attributes || [];
+  const norm = list.some((a) => has(a.norm));
+  const fmt = (a) => {
+    if (typeof a.value === 'string') return a.value;
+    if (!has(a.value)) return '–';
+    if (a.key === 'nvme:data_units_written' || a.key === 'nvme:data_units_read') return `${fmtNumber(a.value)} (${fmtBytes(a.value * 512000)})`;
+    if (/temperature$|:194$|:190$|^win:Temperature/i.test(a.key) && a.value < 200) return `${a.value} °C`;
+    if (a.key === 'nvme:percentage_used' || a.key === 'win:Wear' || a.key === 'nvme:available_spare' || a.key === 'nvme:available_spare_threshold') return `${a.value} %`;
+    return fmtNumber(a.value);
+  };
+  return (
+    <div className="table-wrap dh-attrs-wrap">
+      <table className="table dh-attrs">
+        <thead>
+          <tr>
+            <th scope="col">Value</th>
+            <th scope="col" className="num">Raw</th>
+            {norm && <th scope="col" className="num">Current</th>}
+            {norm && <th scope="col" className="num">Worst</th>}
+            {norm && <th scope="col" className="num">Limit</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {list.map((a) => {
+            const label = ATTR_LABEL[a.key] ? t(ATTR_LABEL[a.key]) : a.label;
+            return (
+              <tr key={a.key} className={a.failing ? 'dh-attr-failing' : undefined}>
+                <th scope="row">
+                  <span className="dh-attr-name">
+                    {has(a.id) && <span className="dh-attr-id">{a.id}</span>}
+                    {label}
+                    {ATTR_INFO[a.key] && <InfoTip pop title={label}>{t(ATTR_INFO[a.key])}</InfoTip>}
+                    {a.failing && <span className="badge err">Below limit</span>}
+                  </span>
+                </th>
+                <td className="num">{fmt(a)}</td>
+                {norm && <td className="num">{has(a.norm) ? a.norm : '–'}</td>}
+                {norm && <td className="num">{has(a.worst) ? a.worst : '–'}</td>}
+                {norm && <td className="num">{has(a.thresh) ? a.thresh : '–'}</td>}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/* ---------------- Drive card ---------------- */
+
+function DriveCard({ d, limits, onRefresh, onAdmin, canElevate }) {
+  const [open, setOpen] = useState(false);
+  const detailsId = useId();
   const lv = LEVEL[d.level] || LEVEL.unknown;
-  const temps = (d.history || []).map((h) => h.tempC).filter((x) => x != null);
-  const counters = Object.keys(COUNTER_LABEL).filter((k) => d[k] != null);
+  const ssd = d.media !== 'hdd';
+  // Values to show: full S.M.A.R.T., administrator values or at least what udisks/the kernel tell without rights
+  const smart = !d.partial || !!d.smartAt || has(d.tempC) || has(d.powerOnHours);
+  const tTone = d.tempStale ? null : levelOfTemp(d, limits);
+  const wTone = levelOfWear(d.wearPct, limits);
+  const temps = (d.history || []).map((h) => h.tempC).filter(has);
+  const wears = (d.history || []).map((h) => h.wearPct).filter(has);
+  const errors = errorSum(d);
+  const kind = [t(MEDIA[d.media] || 'Drive'), d.bus === 'USB' ? 'USB' : null, d.sizeBytes ? fmtBytes(d.sizeBytes) : null].filter(Boolean).join(' · ');
   const menu = (e) => contextMenu(e, [
-    d.serial && { label: t('Copy serial number'), icon: Copy, onClick: () => navigator.clipboard.writeText(d.serial).then(() => toast.success('Copied')).catch(() => {}) },
+    d.serial && { label: t('Copy serial number'), icon: Copy, onClick: () => copy(d.serial) },
     { label: t('Check now'), icon: RefreshCw, onClick: onRefresh },
+    canElevate && { label: t('Check with admin rights'), icon: ShieldCheck, onClick: onAdmin },
   ]);
+  const life = d.life;
+  const lifeText = !has(d.wearPct) ? '–' : !life ? t('Too early to say') : life.years === 0 ? t('Worn out') : life.years > 20 ? t('More than 20 years') : t('≈ {n} years', { n: life.years.toLocaleString(undefined, { maximumFractionDigits: life.years < 3 ? 1 : 0 }) });
+  const facts = [
+    has(d.dataWrittenBytes) && ['Data written', fmtBytes(d.dataWrittenBytes)],
+    has(d.dataReadBytes) && ['Data read', fmtBytes(d.dataReadBytes)],
+    has(d.spareLeftPct) && ['Spare left', `${d.spareLeftPct} %`],
+    has(d.powerCycles) && ['Power cycles', fmtNumber(d.powerCycles)],
+    has(d.unsafeShutdowns) && ['Unsafe shutdowns', fmtNumber(d.unsafeShutdowns)],
+    ...COUNTERS.filter((k) => has(d[k])).map((k) => [COUNTER_LABEL[k], fmtNumber(d[k])]),
+  ].filter(Boolean);
   return (
-    <div className={`card dh-card dh-${d.level}`} onContextMenu={menu}>
-      <div className="card-head">
-        <HardDrive size={16} aria-hidden="true" />
-        <h3 className="ellipsis grow" title={d.name}>{d.name}</h3>
-        <span className={`badge ${lv.badge}`}><lv.icon size={12} aria-hidden="true" /> {t(lv.label)}</span>
-      </div>
-      <div className="card-body stack dh-body">
-        <div className="tiny muted">{t(MEDIA[d.media] || 'Drive')}{d.bus && d.bus !== 'NVMe' ? ` · ${d.bus}` : ''}{d.sizeBytes ? ` · ${fmtBytes(d.sizeBytes)}` : ''}{d.status && d.status !== 'OK' ? ` · ${d.status}` : ''}</div>
-        <div className="dh-facts">
-          <Fact icon={Thermometer} label={t('Temperature')} value={d.tempC != null ? `${d.tempC} °C` : '–'} tip={d.tempMaxC ? t('The drive itself reports {n} °C as its upper limit.', { n: d.tempMaxC }) : null} />
-          <Fact icon={Gauge} label={t('Wear')} value={d.wearPct != null ? `${d.wearPct} %` : '–'} tip={t('How much of the rated write volume of an SSD is used up. 100 % does not mean it dies, but it should be replaced soon after.')} />
-          <Fact icon={Clock} label={t('Power-on time')} value={hours(d.powerOnHours)} />
+    <article className={`card dh-card dh-lv-${d.level}`} onContextMenu={menu} aria-label={d.name}>
+      <div className="dh-card-top">
+        <span className="dh-drive-icon" aria-hidden="true">{d.bus === 'USB' ? <Usb size={20} /> : <HardDrive size={20} />}</span>
+        <div className="dh-title">
+          <h3 className="ellipsis" title={d.name}>{d.name}</h3>
+          <span className="dh-kind">{kind}</span>
         </div>
-        {d.wearPct != null && <div className={`progress dh-wear dh-wear-${d.problems && d.problems.some((p) => p.code === 'wear') ? d.level : 'fine'}`} role="progressbar" aria-label={t('Wear')} aria-valuenow={d.wearPct} aria-valuemin={0} aria-valuemax={100}><div style={{ width: `${Math.max(2, d.wearPct)}%` }} /></div>}
-        {temps.length > 1 && <div className="row-tight"><Sparkline data={temps} width={160} height={28} color="var(--accent-2)" /><span className="tiny muted">{t('Temperature over the last {n} readings', { n: temps.length })}</span></div>}
-        {d.problems && d.problems.length > 0 && (
-          <ul className="dh-problems">
-            {d.problems.map((p) => <li key={p.code} className={p.level === 'err' ? 'c-err' : 'c-warn'}>{p.level === 'err' ? <XCircle size={14} aria-hidden="true" /> : <AlertTriangle size={14} aria-hidden="true" />}<span>{describe(p, t)}</span></li>)}
-          </ul>
-        )}
-        {counters.length > 0 && (
-          <dl className="dh-counters small">
-            {counters.map((k) => <div key={k}><dt className="muted">{t(COUNTER_LABEL[k])}</dt><dd>{d[k].toLocaleString()}</dd></div>)}
-          </dl>
-        )}
-        {d.serial && <div className="tiny muted mono ellipsis" title={d.serial}>{t('Serial number')} {d.serial}</div>}
+        <span className={`badge ${lv.badge} dh-badge`}><lv.icon size={13} aria-hidden="true" />{t(lv.label)}</span>
       </div>
-    </div>
+
+      {d.problems && d.problems.length > 0 && (
+        <ul className="dh-problems">
+          {d.problems.map((p) => (
+            <li key={p.code} className={p.level === 'err' ? 'dh-problem-err' : 'dh-problem-warn'}>
+              {p.level === 'err' ? <XCircle size={15} aria-hidden="true" /> : <AlertTriangle size={15} aria-hidden="true" />}
+              <span>{describe(p, t)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {smart ? (
+        <>
+          <div className="dh-kpis">
+            <Kpi icon={Thermometer} label={t('Temperature')} tone={tTone}
+              value={has(d.tempC) ? `${d.tempC} °C` : '–'}
+              sub={!has(d.tempC) ? t('Not reported') : d.tempStale ? t('measured {when}', { when: rel(d.smartAt) }) : t('warns from {n} °C', { n: limits.tempWarn })}
+              tip={d.tempMaxC ? t('The drive itself reports {n} °C as its upper limit.', { n: d.tempMaxC }) : null} />
+            {ssd ? (
+              <Kpi icon={Activity} label={t('Wear')} tone={wTone} sub={has(d.wearPct) ? t('warns from {n} %', { n: limits.wearWarn }) : t('Not reported')}
+                tip={t('How much of the rated write volume of an SSD is used up. 100 % does not mean it dies, but it should be replaced soon after.')}>
+                {has(d.wearPct) ? <WearRing pct={d.wearPct} tone={wTone} /> : <b className="dh-kpi-value">–</b>}
+              </Kpi>
+            ) : (
+              <Kpi icon={AlertTriangle} label={t('Reallocated sectors')} tone={has(d.reallocated) && d.reallocated > 0 ? 'warn' : has(d.reallocated) ? 'ok' : null}
+                value={has(d.reallocated) ? fmtNumber(d.reallocated) : '–'} sub={has(d.pending) ? t('{n} waiting', { n: fmtNumber(d.pending) }) : null}
+                tip={t(ATTR_INFO['ata:5'])} />
+            )}
+            {ssd ? (
+              <Kpi icon={Hourglass} label={t('Life left')} value={lifeText}
+                sub={life && life.basis === 'trend' ? t('from the trend of the last weeks') : life ? t('from the wear so far') : null}
+                tip={t('A rough estimate at the same use – from how fast the wear grew so far. It says nothing about sudden failures, so keep backups anyway.')} />
+            ) : (
+              <Kpi icon={AlertTriangle} label={t('Errors')} tone={has(errors) ? (errors > 0 ? 'warn' : 'ok') : null} value={has(errors) ? fmtNumber(errors) : '–'}
+                sub={has(errors) ? t('all error counters together') : t('Not reported')} />
+            )}
+            <Kpi icon={Clock} label={t('Power-on time')} value={has(d.powerOnHours) ? `${fmtNumber(d.powerOnHours)} h` : '–'}
+              sub={has(d.powerOnHours) && d.powerOnHours >= 48 ? pl(Math.round(d.powerOnHours / 24), '≈ {n} day', '≈ {n} days') : null} />
+          </div>
+
+          {(facts.length > 0 || temps.length > 1 || wears.length > 1) && (
+            <div className="dh-more">
+              {facts.length > 0 && (
+                <dl className="dh-facts">
+                  {facts.map(([k, v]) => <div key={k}><dt>{t(k)}</dt><dd>{v}</dd></div>)}
+                </dl>
+              )}
+              {(temps.length > 1 || wears.length > 1) && (
+                <div className="dh-trends">
+                  {temps.length > 1 && (
+                    <div className="dh-trend" title={t('Temperature over the last {n} readings', { n: temps.length })}>
+                      <span className="dh-trend-label">Temperature</span>
+                      <Sparkline data={temps} width={140} height={28} color="var(--accent-2)" />
+                      <span className="dh-trend-range">{`${Math.min(...temps)}–${Math.max(...temps)} °C`}</span>
+                    </div>
+                  )}
+                  {wears.length > 1 && Math.max(...wears) > Math.min(...wears) && (
+                    <div className="dh-trend" title={t('Wear over the last {n} readings', { n: wears.length })}>
+                      <span className="dh-trend-label">Wear</span>
+                      <Sparkline data={wears} width={140} height={28} color="var(--accent)" max={100} />
+                      <span className="dh-trend-range">{`${Math.min(...wears)}–${Math.max(...wears)} %`}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="dh-admin-cta">
+          <ShieldCheck size={18} aria-hidden="true" />
+          <div className="dh-admin-cta-text">
+            <b>Only the health status so far</b>
+            <span>Temperature, wear and error counters need administrator rights.</span>
+          </div>
+          {canElevate && <Btn className="sm" icon={ShieldCheck} onClick={onAdmin}>Check with admin rights</Btn>}
+        </div>
+      )}
+
+      <div className="dh-card-foot">
+        {d.attributes && d.attributes.length > 0 && (
+          <button type="button" className="btn ghost sm dh-toggle" aria-expanded={open} aria-controls={detailsId} onClick={() => setOpen(!open)}>
+            <ChevronDown size={14} className={open ? 'dh-rot' : undefined} aria-hidden="true" />
+            {open ? t('Hide details') : pl(d.attributes.length, 'Show {n} value', 'Show all {n} values')}
+          </button>
+        )}
+        <span className="dh-foot-meta">
+          {d.smartAt ? t('Values read {when}', { when: rel(d.smartAt) }) : null}
+        </span>
+        {d.serial && (
+          <button type="button" className="btn ghost sm dh-serial" title={t('Copy serial number')} aria-label={t('Copy serial number {serial}', { serial: d.serial })} onClick={() => copy(d.serial)}>
+            <span className="mono ellipsis">{d.serial}</span><Copy size={13} aria-hidden="true" />
+          </button>
+        )}
+      </div>
+      {open && <div id={detailsId}><AttrTable d={d} /></div>}
+    </article>
   );
 }
+
+/* ---------------- Status bar ---------------- */
+
+function StatusBar({ d, drives, busy, onRefresh, onAdmin, onSchedule }) {
+  const n = { err: 0, warn: 0, ok: 0, unknown: 0 };
+  for (const x of drives) n[x.level in n ? x.level : 'unknown'] += 1;
+  const overall = n.err ? 'err' : n.warn ? 'warn' : n.ok ? 'ok' : 'unknown';
+  const Icon = LEVEL[overall].icon;
+  const headline = n.err ? pl(n.err, '{n} drive is in danger', '{n} drives are in danger')
+    : n.warn ? pl(n.warn, '{n} drive needs attention', '{n} drives need attention')
+      : n.ok ? pl(drives.length, 'Your drive is healthy', 'All {n} drives are healthy') : t('State unknown');
+  const sch = d.schedule || {};
+  const schTip = (
+    <>
+      Hostwerk sets up a Windows task that reads the values every hour with administrator rights. Windows asks for permission once. The task only reads and removes itself when you uninstall the extension.
+      {(d.traces || []).length > 0 && <span className="dh-traces">{(d.traces || []).map((x) => <span key={x.label} className="mono">{x.label}</span>)}</span>}
+    </>
+  );
+  return (
+    <section className={`card dh-status dh-lv-${overall}`} aria-label={t('Overview')}>
+      <span className="dh-status-icon" aria-hidden="true"><Icon size={26} /></span>
+      <div className="dh-status-main">
+        <h2 className="dh-status-title">{headline}</h2>
+        <div className="dh-status-meta">
+          <span>{t('Checked {when}', { when: rel(d.at) })}</span>
+          {d.nextAt && d.nextAt > Date.now() && <span>{t('next check {when}', { when: rel(d.nextAt) })}</span>}
+          <span>{d.admin ? t('admin values {when}', { when: rel(d.admin.at) }) : t('no admin values yet')}</span>
+        </div>
+      </div>
+      <div className="dh-status-actions">
+        {sch.supported && (
+          <div className="dh-switch-row">
+            <Switch checked={sch.on} onChange={onSchedule} disabled={!!d.adminBusy} label={t('Check regularly with admin rights')} />
+            <span>Check regularly</span>
+            <InfoTip pop title={t('Check regularly with admin rights')}>{schTip}</InfoTip>
+          </div>
+        )}
+        <Btn className="ghost" icon={RefreshCw} busy={busy} onClick={onRefresh} title={t('Check again without admin rights')}>Check now</Btn>
+        {d.canElevate && <Btn className="primary" icon={ShieldCheck} busy={d.adminBusy === 'check'} onClick={onAdmin}>Check with admin rights</Btn>}
+      </div>
+    </section>
+  );
+}
+
+/* ---------------- Page ---------------- */
 
 function DiskHealthPage() {
   const st = useApi('/disk-health', [], { live: false });
   const [busy, setBusy] = useState(false);
+  const d = st.data;
+  const installing = !!(d && d.smartctl && d.smartctl.install && d.smartctl.install.running);
+  // While smartmontools installs, look again every few seconds
+  useEffect(() => {
+    if (!installing) return undefined;
+    const iv = setInterval(() => { st.reload({ silent: true }); }, 4000);
+    return () => clearInterval(iv);
+  }, [installing]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const refresh = async () => {
     setBusy(true);
     try { st.setData(await post('/disk-health/refresh')); } catch (e) { toast.error(e); }
     setBusy(false);
   };
-  const d = st.data;
-  const drives = d ? [...d.drives].sort(byLevel) : [];
+  const adminCheck = async () => {
+    const r = await post('/disk-health/admin-check');
+    if (r.view) st.setData(r.view);
+    if (r.ok) toast.success('Values read with administrator rights'); else toast.error(reasonText(r));
+  };
+  const setSchedule = async (on) => {
+    const ok = on
+      ? await confirmDialog({
+        title: 'Check regularly with admin rights?',
+        text: t('Hostwerk sets up a Windows task that reads the drive values every hour with administrator rights. Windows asks for permission once.\n\nThe task only reads (temperature, wear, errors) and writes the values to {dir}. Switch it off here at any time – it also removes itself when you uninstall the extension.', { dir: (d.traces || []).find((x) => x.kind === 'folder')?.label || 'C:\\ProgramData\\HostwerkDiskHealth' }),
+        confirm: 'Set up',
+      })
+      : await confirmDialog({ title: 'Stop the regular check?', text: 'Windows asks for permission once more to remove the task and its folder. The values read so far stay.', confirm: 'Remove' });
+    if (!ok) return;
+    const r = await post('/disk-health/schedule', { on });
+    if (r.view) st.setData(r.view);
+    if (r.ok) toast.success(on ? 'Regular check set up – first values arrive in a minute' : 'Regular check removed'); else toast.error(reasonText(r));
+  };
+  const installSmartctl = async () => {
+    const ok = await confirmDialog({
+      title: 'Install smartmontools?',
+      text: 'smartmontools (smartctl) reads more than Windows: data written, every S.M.A.R.T. value and many USB drives. Hostwerk installs it with winget from the official package source – winget checks the checksum of the download, Windows asks for permission.\n\nsmartmontools is free software under the GPL and not part of Hostwerk.',
+      confirm: 'Install',
+    });
+    if (!ok) return;
+    const r = await post('/disk-health/smartctl/install');
+    if (r.view) st.setData(r.view);
+    if (!r.ok) toast.error(reasonText(r));
+  };
+
+  const drives = d ? [...(d.drives || [])].sort(byLevel) : [];
+  const sc = (d && d.smartctl) || {};
+  const sch = (d && d.schedule) || {};
+  const needsAdmin = drives.some((x) => x.partial && !x.smartAt);
   return (
-    <div className="page fade-in">
+    <div className="page fade-in dh-page">
       <div className="page-head">
         <div>
           <h1><Activity /> Drive health</h1>
-          <p>Temperature, wear and errors of every drive – Hostwerk tells you when something gets worse.</p>
-        </div>
-        <div className="actions">
-          <Btn className="primary" icon={RefreshCw} busy={busy} onClick={refresh}>Check now</Btn>
+          <InfoTip title="Drive health">Hostwerk reads the S.M.A.R.T. values of every drive – temperature, wear, errors – and tells you when something gets worse. Nothing on a drive is ever changed.</InfoTip>
         </div>
       </div>
       {st.error && <Callout kind="err" dismissible={false}>{st.error}</Callout>}
-      {d && d.error && <Callout kind="warn" dismissible={false} title="The drives could not be read">{d.error}</Callout>}
-      {d && (d.notes || []).filter((n) => NOTES[n]).map((n) => <Callout key={n} kind="info" title={t(NOTES[n][0])}>{t(NOTES[n][1])}</Callout>)}
       {st.loading && !d ? <Loading /> : !d || !d.at ? (
         <Empty icon={HardDrive} title="Not checked yet" text="The first check runs shortly after Hostwerk starts – or right now." action={<Btn className="primary" icon={RefreshCw} busy={busy} onClick={refresh}>Check now</Btn>} />
       ) : (d.notes || []).includes('unsupported') ? (
         <Empty icon={HardDrive} title="Not available on this system" text="Drive health works on Windows and Linux, and wherever smartctl is installed." />
-      ) : !drives.length ? (
-        <Empty icon={HardDrive} title="No drives found" text="The system did not list any physical drive." />
       ) : (
         <>
-          <div className="grid grid-2 dh-grid">{drives.map((x) => <DriveCard key={x.id} d={x} onRefresh={refresh} />)}</div>
-          <p className="tiny muted row-tight dh-foot">
-            {t('As of {when} · warns from {temp} °C and {wear} % wear', { when: fmtDate(d.at), temp: d.limits.tempWarn, wear: d.limits.wearWarn })}
-            <InfoTip inline title="Notifications">Warnings go to Hostwerk’s notifications (Live → Alerts: push, Discord, ntfy, mail) and appear under Live → Watchers. Limits and the rhythm are in Settings → Notifications.</InfoTip>
+          <StatusBar d={d} drives={drives} busy={busy} onRefresh={refresh} onAdmin={adminCheck} onSchedule={setSchedule} />
+          <div className="dh-hints">
+            {d.error && <Hint icon={AlertTriangle} tone="warn">{t('The drives could not be read: {error}', { error: d.error })}</Hint>}
+            {needsAdmin && d.canElevate && (
+              <Hint action={<Btn className="sm primary" icon={ShieldCheck} busy={d.adminBusy === 'check'} onClick={adminCheck}>Check with admin rights</Btn>}
+                tipTitle={t('Why administrator rights?')}
+                tip={d.platform === 'win32' ? t('Without administrator rights Windows only shows whether a drive is healthy. Temperature, wear and error counters are read in a single check – Windows asks for permission once. Hostwerk itself keeps running without admin rights.') : t('smartctl needs root rights for most drives. Your system asks for your password once; Hostwerk itself keeps running without root.')}>
+                Temperature, wear and errors need one check with administrator rights.
+              </Hint>
+            )}
+            {needsAdmin && d.needsUpdate && <Hint icon={Wrench}>Update Hostwerk (2.12 or newer) to read temperature, wear and errors with administrator rights.</Hint>}
+            {(d.notes || []).includes('install-smartctl') && sc.hint && (
+              <Hint icon={Download} action={<Btn className="sm" icon={Copy} onClick={() => copy(sc.hint)}>Copy command</Btn>}>
+                {t('More values with smartmontools: {cmd}', { cmd: sc.hint })}
+              </Hint>
+            )}
+            {(d.notes || []).includes('smartctl-rights') && (
+              <Hint icon={ShieldCheck} tipTitle={t('Without the password prompt')} tip={t('Hostwerk can also get read access permanently, for example with: sudo setcap cap_sys_rawio,cap_sys_admin+ep $(command -v smartctl)')}>
+                smartctl may not open some drives without root rights.
+              </Hint>
+            )}
+            {sch.on && (sch.state === 'stale' || sch.state === 'missing') && (
+              <Hint icon={AlertTriangle} tone="warn" action={<Btn className="sm" icon={ShieldCheck} onClick={() => setSchedule(true)}>Set up again</Btn>}>
+                {sch.state === 'missing' ? t('The regular check is gone – the Windows task was removed.') : t('The regular check has not delivered values since {when}.', { when: sch.lastAt ? fmtDate(sch.lastAt) : fmtDate(sch.since) })}
+              </Hint>
+            )}
+            {d.platform === 'win32' && d.admin && !sc.ok && (
+              <Hint icon={Download}
+                action={sc.canInstall ? <Btn className="sm" icon={Download} busy={installing} onClick={installSmartctl}>{installing ? t('Installing …') : t('Install smartmontools')}</Btn> : <a className="btn sm" href="https://www.smartmontools.org/wiki/Download" target="_blank" rel="noreferrer">Download page</a>}
+                tipTitle="smartmontools" tip={t('Free tool (GPL) from smartmontools.org – a separate download, not part of Hostwerk. Version {min} or newer, installed to Program Files.', { min: sc.min || '7.0' })}>
+                {sc.path && !sc.ok ? t('smartctl {v} is too old – version {min} or newer reads more values.', { v: sc.version || '?', min: sc.min || '7.0' }) : t('smartmontools reads more: data written, every S.M.A.R.T. value and USB drives.')}
+              </Hint>
+            )}
+            {sc.install && sc.install.error && !installing && <Hint icon={AlertTriangle} tone="warn">{t('smartmontools could not be installed: {error}', { error: sc.install.error })}</Hint>}
+          </div>
+          {!drives.length ? (
+            <Empty icon={HardDrive} title="No drives found" text="The system did not list any physical drive." />
+          ) : (
+            <div className="dh-grid">
+              {drives.map((x) => <DriveCard key={x.id} d={x} limits={d.limits} canElevate={d.canElevate} onRefresh={refresh} onAdmin={adminCheck} />)}
+            </div>
+          )}
+          <p className="dh-foot">
+            <Bell size={14} aria-hidden="true" />
+            <span>{t('Warns from {temp} °C and {wear} % wear.', { temp: d.limits.tempWarn, wear: d.limits.wearWarn })}</span>
+            <a href={SETTINGS_HREF}>Change in the settings</a>
+            <InfoTip pop title="Notifications">Warnings go to Hostwerk’s notifications (push, Discord, ntfy, mail) and appear under Live → Watchers.</InfoTip>
           </p>
         </>
       )}
@@ -128,14 +468,15 @@ function DiskHealthTile() {
   if (!d || !d.at || !d.drives.length) return <TileEmpty icon={HardDrive} text="No drive checked yet" href="#/ext/disk-health" />;
   const drives = [...d.drives].sort(byLevel).slice(0, 4);
   return (
-    <div className="card-body stack dh-tile">
+    <div className="card-body dh-tile">
       {drives.map((x) => {
         const lv = LEVEL[x.level] || LEVEL.unknown;
+        const facts = [has(x.tempC) && !x.tempStale ? `${x.tempC} °C` : null, has(x.wearPct) ? t('{n} % worn', { n: x.wearPct }) : null].filter(Boolean).join(' · ');
         return (
-          <a key={x.id} className="row-tight dh-tile-row" href="#/ext/disk-health" title={x.problems && x.problems.length ? describe(x.problems[0], t) : t(lv.label)}>
-            <lv.icon size={15} className={x.level === 'err' ? 'c-err' : x.level === 'warn' ? 'c-warn' : x.level === 'ok' ? 'c-ok' : 'muted'} aria-label={t(lv.label)} />
-            <span className="grow ellipsis small">{x.name}</span>
-            <span className="small muted">{x.tempC != null ? `${x.tempC} °C` : ''}{x.tempC != null && x.wearPct != null ? ' · ' : ''}{x.wearPct != null ? `${x.wearPct} %` : ''}</span>
+          <a key={x.id} className="dh-tile-row" href="#/ext/disk-health" title={x.problems && x.problems.length ? describe(x.problems[0], t) : t(lv.label)}>
+            <lv.icon size={16} className={`dh-tile-icon dh-tone-${x.level}`} aria-label={t(lv.label)} />
+            <span className="dh-tile-name ellipsis">{x.name}</span>
+            <span className="dh-tile-facts">{facts || t(lv.label)}</span>
           </a>
         );
       })}
