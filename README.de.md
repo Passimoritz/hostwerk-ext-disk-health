@@ -8,6 +8,7 @@ Zustand jedes Laufwerks auf einen Blick: Temperatur, Abnutzung, Lese- und Schrei
 
 ## Was sie kann
 
+- **Wo:** System → Laufwerks-Gesundheit und Übersichtskachel – seit 1.2.0 ohne eigenen Seitenleisten-Eintrag; die ganze Seite bleibt unter Erweiterungen → Öffnen
 - **Statusleiste** oben: alle Laufwerke gesund, ansehen oder gefährdet – mit letzter und nächster Prüfung, dem Alter der Admin-Werte und den Knöpfen *Jetzt prüfen* und *Mit Administratorrechten prüfen*
 - **Eine Karte je Laufwerk** im Raster: Modell, Art (NVMe-/SATA-SSD, Festplatte, USB), Größe und Zustand; große Kennzahlen – Temperatur mit Ampel, Abnutzung als Ring, geschätzte Restlebensdauer, Betriebszeit (bei Festplatten stattdessen ersetzte Sektoren und Fehler); geschrieben/gelesen, Reserve, Einschaltvorgänge, unsaubere Abschaltungen, jeder Fehlerzähler; Verlauf von Temperatur und Abnutzung
 - **Details** je Laufwerk: jeder S.M.A.R.T.-Wert als Tabelle (aktuell, schlechtester, Grenze, Rohwert) mit Erklärung je Zeile; Werte unter der Herstellergrenze sind markiert

@@ -1,3 +1,7 @@
+## 1.2.0
+
+- Lives where it belongs: System → Drive health and the dashboard tile – no own sidebar entry any more (Hostwerk 3.0+); the full page stays under Extensions → Open and can be pinned in the sidebar settings. / Steckt jetzt dort, wo sie hingehört: System → Laufwerks-Gesundheit und Übersichtskachel – kein eigener Seitenleisten-Eintrag mehr (Hostwerk 3.0+); die ganze Seite bleibt unter Erweiterungen → Öffnen und lässt sich in den Seitenleisten-Einstellungen anheften.
+
 ## 1.1.0
 
 - Check with administrator rights: one Windows prompt (Hostwerk's elevatedBatch, Hostwerk 2.12+) reads temperature, wear, power-on hours and every error counter of all drives at once; the values are kept and shown with their time. Linux: smartctl through pkexec, udisks without root. / Mit Administratorrechten prüfen: eine Windows-Rückfrage (Hostwerks elevatedBatch, ab Hostwerk 2.12) liest Temperatur, Abnutzung, Betriebsstunden und jeden Fehlerzähler aller Laufwerke auf einmal; die Werte bleiben gespeichert und erscheinen mit Zeitpunkt. Linux: smartctl über pkexec, udisks ohne root.
