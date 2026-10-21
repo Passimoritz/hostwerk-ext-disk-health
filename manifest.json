@@ -1,0 +1,98 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Passimoritz/hostwerk-public/main/sdk/manifest.schema.json",
+  "id": "disk-health",
+  "name": {
+    "de": "Festplatten-Gesundheit",
+    "en": "Drive health"
+  },
+  "description": {
+    "de": "Zustand jedes Laufwerks auf einen Blick: Temperatur, Abnutzung, Lese- und Schreibfehler und Betriebsstunden (S.M.A.R.T.). Meldet sich über Hostwerks Benachrichtigungen, wenn Fehler wachsen, es zu warm wird oder ein Laufwerk verschleißt. Mit Kachel für die Übersicht.",
+    "en": "The state of every drive at a glance: temperature, wear, read and write errors and power-on hours (S.M.A.R.T.). Alerts you through Hostwerk's notifications when errors grow, a drive runs hot or wears out. With a dashboard tile."
+  },
+  "version": "1.0.0",
+  "author": "Hostwerk",
+  "homepage": "https://github.com/Passimoritz/hostwerk-ext-disk-health",
+  "license": "MIT",
+  "icon": "icon.svg",
+  "banner": "banner.svg",
+  "color": "#0e7490",
+  "category": "monitoring",
+  "hostwerk": ">=2.11.0",
+  "permissions": [
+    "native"
+  ],
+  "page": {
+    "title": {
+      "de": "Festplatten-Gesundheit",
+      "en": "Drive health"
+    },
+    "description": {
+      "de": "Temperatur, Abnutzung und Fehler je Laufwerk.",
+      "en": "Temperature, wear and errors per drive."
+    },
+    "icon": "activity",
+    "nav": {
+      "group": "system"
+    }
+  },
+  "backend": "server/index.js",
+  "ui": "ui/index.js",
+  "settingsTab": "notifications",
+  "settings": [
+    {
+      "key": "notify",
+      "type": "switch",
+      "label": {
+        "de": "Bei Problemen mit Laufwerken benachrichtigen",
+        "en": "Notify me about drive problems"
+      },
+      "default": true
+    },
+    {
+      "key": "tempWarn",
+      "type": "number",
+      "label": {
+        "de": "Warnen ab Temperatur (°C)",
+        "en": "Warn from temperature (°C)"
+      },
+      "default": 60,
+      "min": 40,
+      "max": 85
+    },
+    {
+      "key": "wearWarn",
+      "type": "number",
+      "label": {
+        "de": "Warnen ab Abnutzung (%)",
+        "en": "Warn from wear (%)"
+      },
+      "default": 80,
+      "min": 50,
+      "max": 99
+    },
+    {
+      "key": "interval",
+      "type": "number",
+      "label": {
+        "de": "Laufwerke prüfen alle … Minuten",
+        "en": "Check the drives every … minutes"
+      },
+      "default": 30,
+      "min": 10,
+      "max": 1440
+    }
+  ],
+  "synergies": [
+    {
+      "with": "disk-usage",
+      "title": {
+        "de": "Platz und Zustand zusammen",
+        "en": "Space and condition together"
+      },
+      "text": {
+        "de": "„Speicher je Dienst“ zeigt, wie voll das Laufwerk ist und wer den Platz belegt – „Festplatten-Gesundheit“, ob das Laufwerk selbst noch gesund ist.",
+        "en": "“Storage per service” shows how full the drive is and who uses the space – “Drive health” whether the drive itself is still healthy."
+      }
+    }
+  ]
+}
