@@ -3,27 +3,31 @@
  * Drive health – reading the values. Only READING commands, never anything that changes a drive:
  *   Windows: Get-PhysicalDisk + Get-StorageReliabilityCounter (PowerShell, no admin needed – without admin rights some
  *            counters are simply missing, the drive list and the health status are still there)
- *   Linux:   smartctl --scan / smartctl -j -a <device> when installed and allowed, otherwise /sys/block
+ *   Linux:   smartctl --scan / smartctl -j -a <device> when installed and allowed, otherwise /sys/block plus the
+ *            S.M.A.R.T. summary udisks offers without root (busctl, read-only D-Bus call)
  * `io` is injected ({ exec, readdir, readFile, platform }) so tests can replay recorded outputs.
  */
 const path = require('path');
 const H = require('./health');
 
-// PowerShell: enums as text, every disk on its own (one disk without counters must not hide the others)
-const PS_SCRIPT = [
+// PowerShell: enums as text, every disk on its own (one disk without counters must not hide the others). Fills $out –
+// shared with the administrator check (server/admin.js), which adds smartctl and the markers.
+const DISK_LINES = [
   "$ErrorActionPreference = 'SilentlyContinue'; $ProgressPreference = 'SilentlyContinue'",
   '$out = @()',
   'foreach ($d in @(Get-PhysicalDisk)) {',
   '  $c = $null; $e = $null',
   '  try { $r = $d | Get-StorageReliabilityCounter -ErrorAction Stop',
   '    if ($r) { $c = [pscustomobject]@{ Temperature = $r.Temperature; TemperatureMax = $r.TemperatureMax; Wear = $r.Wear; PowerOnHours = $r.PowerOnHours;',
-  '      ReadErrorsUncorrected = $r.ReadErrorsUncorrected; ReadErrorsTotal = $r.ReadErrorsTotal; WriteErrorsUncorrected = $r.WriteErrorsUncorrected; WriteErrorsTotal = $r.WriteErrorsTotal } }',
+  '      ReadErrorsUncorrected = $r.ReadErrorsUncorrected; ReadErrorsCorrected = $r.ReadErrorsCorrected; ReadErrorsTotal = $r.ReadErrorsTotal;',
+  '      WriteErrorsUncorrected = $r.WriteErrorsUncorrected; WriteErrorsCorrected = $r.WriteErrorsCorrected; WriteErrorsTotal = $r.WriteErrorsTotal;',
+  '      StartStopCycleCount = $r.StartStopCycleCount; LoadUnloadCycleCount = $r.LoadUnloadCycleCount } }',
   '  } catch { $e = $_.Exception.Message }',
   '  $out += [pscustomobject]@{ DeviceId = $d.DeviceId; FriendlyName = $d.FriendlyName; SerialNumber = $d.SerialNumber; MediaType = [string]$d.MediaType;',
   '    BusType = [string]$d.BusType; Size = $d.Size; HealthStatus = [string]$d.HealthStatus; OperationalStatus = [string]($d.OperationalStatus -join \', \'); Counters = $c; CounterError = $e }',
   '}',
-  'ConvertTo-Json -InputObject @($out) -Depth 4 -Compress',
-].join('\n');
+];
+const PS_SCRIPT = [...DISK_LINES, 'ConvertTo-Json -InputObject @($out) -Depth 4 -Compress'].join('\n');
 
 /** -EncodedCommand: no quoting problems, no .ps1 file (some systems block scripts from files). */
 function psArgs(script = PS_SCRIPT) {
@@ -86,15 +90,28 @@ async function readSys(io) {
   return H.parseSys(out);
 }
 
+/** udisks over D-Bus (busctl, part of systemd): S.M.A.R.T. summary without root. [] when udisks/busctl are missing. */
+async function readUdisks(io) {
+  const r = await io.exec('busctl', ['--system', '--json=short', 'call', 'org.freedesktop.UDisks2', '/org/freedesktop/UDisks2', 'org.freedesktop.DBus.ObjectManager', 'GetManagedObjects'], { timeout: 15000 });
+  if (!r || r.code !== 0) return [];
+  return H.parseUdisks(H.extractJson(r.stdout));
+}
+
 async function probeLinux(io) {
   const smart = await probeSmartctl(io).catch(() => null);
-  const sys = await readSys(io);
-  if (!smart) return { source: 'sys', drives: sys, notes: [sys.length ? 'install-smartctl' : 'no-drives'], error: null };
+  let sys = await readSys(io);
+  // Drives smartctl could not read get what udisks knows (temperature, power-on time, failing, bad sectors)
+  const fill = async (list) => { const ud = await readUdisks(io).catch(() => []); return ud.length ? H.matchDrives(list, ud).filter((d) => d.source !== 'udisks' || list.length === 0) : list; };
+  if (!smart) {
+    sys = await fill(sys);
+    return { source: 'sys', drives: sys, notes: [sys.length ? 'install-smartctl' : 'no-drives'], error: null };
+  }
   // Drives smartctl could not open (no rights) come from /sys – nothing disappears from the list
   // (same device or same serial = already listed; smartctl calls NVMe /dev/nvme0, /sys calls it nvme0n1)
   const have = new Set(smart.drives.map((d) => d.device));
   const serials = new Set(smart.drives.map((d) => d.serial).filter(Boolean));
-  const rest = sys.filter((d) => !have.has(d.device) && !(d.serial && serials.has(d.serial)));
+  let rest = sys.filter((d) => !have.has(d.device) && !(d.serial && serials.has(d.serial)));
+  if (rest.length) rest = await fill(rest);
   const notes = smart.failed.length ? ['smartctl-rights'] : [];
   return { source: 'smartctl', drives: [...smart.drives, ...rest], notes, error: null };
 }
@@ -108,4 +125,4 @@ async function probe(io) {
   return smart ? { source: 'smartctl', drives: smart.drives, notes: smart.failed.length ? ['smartctl-rights'] : [], error: null } : { source: null, drives: [], notes: ['unsupported'], error: null };
 }
 
-module.exports = { probe, probeWindows, probeLinux, probeSmartctl, readSys, psArgs, PS_SCRIPT };
+module.exports = { probe, probeWindows, probeLinux, probeSmartctl, readSys, readUdisks, psArgs, PS_SCRIPT, DISK_LINES };

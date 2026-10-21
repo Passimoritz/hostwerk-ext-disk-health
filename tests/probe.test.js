@@ -71,7 +71,24 @@ test('Linux mit smartctl: gelesene Laufwerke von smartctl, ohne Rechte geöffnet
   assert.deepStrictEqual(r.drives.map((d) => [d.name, d.source]), [['WD Blue SN570 1TB', 'smartctl'], ['ST4000DM004', 'sys']]);
   // Gerätenamen mit fremden Zeichen werden nie als Befehl weitergegeben
   assert.ok(io.calls.every((c) => !c.includes('rm -rf')));
-  assert.ok(io.calls.every((c) => /^smartctl (--scan -j|-j (-d \w+ )?-a \/dev\/\w+)$/.test(c)), io.calls.join('\n'));
+  // nur lesende Aufrufe: smartctl lesen, udisks fragen (GetManagedObjects)
+  assert.ok(io.calls.every((c) => /^smartctl (--scan -j|-j (-d \w+ )?-a \/dev\/\w+)$/.test(c) || c === `busctl --system --json=short call org.freedesktop.UDisks2 /org/freedesktop/UDisks2 org.freedesktop.DBus.ObjectManager GetManagedObjects`), io.calls.join('\n'));
+});
+
+test('Linux ohne smartctl, mit udisks: Temperatur und Betriebszeit ohne root', async () => {
+  const v = (type, data) => ({ type, data });
+  const io = fakeIo({
+    platform: 'linux', files: SYS,
+    cmds: { busctl: { type: 'a{oa{sa{sv}}}', data: [{ '/org/freedesktop/UDisks2/drives/ST4000': {
+      'org.freedesktop.UDisks2.Drive': { Model: v('s', 'ST4000DM004'), Serial: v('s', ''), Size: v('t', 7814037168 * 512), Rotational: v('b', true) },
+      'org.freedesktop.UDisks2.Drive.Ata': { SmartEnabled: v('b', true), SmartUpdated: v('t', 1), SmartTemperature: v('d', 309.15), SmartPowerOnSeconds: v('t', 3600 * 23110), SmartFailing: v('b', false), SmartNumBadSectors: v('x', 0) },
+    } }] } },
+  });
+  const r = await P.probe(io);
+  assert.deepStrictEqual(r.notes, ['install-smartctl']);
+  const hdd = r.drives.find((d) => d.name === 'ST4000DM004');
+  assert.deepStrictEqual([hdd.tempC, hdd.powerOnHours, hdd.health, hdd.reallocated, hdd.id], [36, 23110, 'healthy', 0, 'sys-sda']);
+  assert.strictEqual(r.drives.length, 2); // nichts doppelt
 });
 
 test('anderes System ohne smartctl: „nicht unterstützt“', async () => {
