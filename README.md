@@ -29,8 +29,9 @@ counters need administrator rights – Hostwerk itself keeps running without the
   `\Hostwerk\DiskHealth`: it runs as SYSTEM at start-up and every hour, runs **only** the reading script and writes the
   result to `%ProgramData%\HostwerkDiskHealth\smart.json`. Hostwerk reads that file without administrator rights. The
   folder belongs to the administrators (users may only read), so nothing without admin rights can swap the script.
-  Switching it off asks once more and removes task and folder. When the extension is uninstalled, the task notices on its
-  next run and removes itself and its folder.
+  Switching it off asks once more and removes task and folder. Hostwerk 3.0+ lists both in the extension pop-up (“What it
+  set up on your PC”) and removes them when you uninstall the extension – one administrator prompt. On older Hostwerk
+  versions the task notices on its next run that the extension is gone and removes itself and its folder.
 - **Linux:** `smartctl` through `pkexec` (one password prompt). Without root, udisks offers temperature, power-on time and
   bad sectors, and `/sys/block` the basics.
 
@@ -70,7 +71,7 @@ Native extensions run as part of Hostwerk (their own server and interface part).
 ## Data and traces
 
 - `data/disk-health/state.json` – the last reading, the last administrator values, a small history per drive (about a month, one sample per hour or on every change) and which problems were already reported. Drives that have been gone for 90 days are forgotten. The file stays when you remove the extension.
-- Only with *Check regularly*: the Windows task `\Hostwerk\DiskHealth` and the folder `%ProgramData%\HostwerkDiskHealth` – the page lists both (ⓘ next to the switch); switching off removes them, uninstalling makes the task remove itself.
+- Only with *Check regularly*: the Windows task `\Hostwerk\DiskHealth` and the folder `%ProgramData%\HostwerkDiskHealth` – the page lists both (ⓘ next to the switch); switching off removes them; uninstalling removes them too (Hostwerk 3.0+, one prompt) – otherwise the task removes itself.
 
 ## Develop
 

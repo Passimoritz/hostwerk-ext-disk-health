@@ -11,6 +11,9 @@
  * Live → Alerts) when errors grow, a drive runs hot or wears out. Also shows up as a watcher under Live → Watchers.
  * Only reading commands – nothing on a drive is ever changed.
  * Data: data/disk-health/state.json · task results: %ProgramData%\HostwerkDiskHealth\smart.json (see admin.js)
+ * Traces (Hostwerk 3.0+, SDK 3.3): the Windows task and its folder are reported with host.traces.add – they show up in the
+ * extension pop-up and Hostwerk removes them (one admin prompt) when the extension is uninstalled. The task's own
+ * clean-up (extension gone → it removes itself) stays as the fallback for older Hostwerk versions.
  */
 const fs = require('fs');
 const path = require('path');
@@ -40,6 +43,22 @@ function createService(host, io) {
   const file = path.join(dir, 'state.json');
   const read = () => { try { return { drives: {}, last: null, admin: null, schedule: null, ...JSON.parse(fs.readFileSync(file, 'utf8')) }; } catch { return { drives: {}, last: null, admin: null, schedule: null }; } };
   const write = (v) => { fs.writeFileSync(`${file}.tmp`, JSON.stringify(v)); fs.renameSync(`${file}.tmp`, file); };
+  /**
+   * Report the Windows task and its folder to Hostwerk as traces (or take them back). Hostwerk before SDK 3.3 has no
+   * host.traces – then the task cleans up after itself as before.
+   */
+  const syncTraces = (on) => {
+    if (!host.traces || typeof host.traces.add !== 'function' || platform !== 'win32') return false;
+    try {
+      if (on) {
+        host.traces.add({ kind: 'task', id: 'task', label: `${A.TASK_FOLDER}${A.TASK_NAME}`, admin: true, remove: { name: `${A.TASK_FOLDER}${A.TASK_NAME}` } });
+        host.traces.add({ kind: 'dir', id: 'folder', label: A.taskDir(env), admin: true, remove: { path: A.taskDir(env) } });
+      } else { host.traces.remove('task'); host.traces.remove('folder'); }
+      return true;
+    } catch (e) { if (host.log) host.log('traces:', e.message); return false; }
+  };
+  // Existing set-ups (before 1.3.0): report what is already there
+  { const st0 = read(); if (platform === 'win32' && ((st0.schedule && st0.schedule.on) || exists(A.taskDir(env)))) syncTraces(true); }
   const settings = () => {
     let s = {};
     try { s = ctx.extMarket.settingsFor(host.id) || {}; } catch { /* defaults */ }
@@ -214,6 +233,7 @@ function createService(host, io) {
       const st = read();
       st.schedule = on ? { on: true, since: Date.now(), intervalMin: A.TASK_INTERVAL_MIN, lastAt: null } : { on: false, since: Date.now() };
       write(st);
+      syncTraces(on);
       // The task starts right away – its first result is there after a few seconds
       if (on) for (const ms of [20000, 90000]) { const tm = setTimeout(() => { run().catch(() => {}); }, ms); if (tm.unref) tm.unref(); }
       return { ok: true };
@@ -276,8 +296,18 @@ function createService(host, io) {
     };
   };
 
-  return { run, view, settings, adminCheck, setSchedule, installSmartctl, findTools, setNext: (t) => { nextAt = t; } };
+  /** Uninstalling (Hostwerk removes the ticked traces right after): the schedule counts as off from now on. */
+  const uninstalled = (traces = []) => {
+    if (!(traces || []).some((t) => t && t.id === 'task')) return false;
+    const st = read();
+    if (st.schedule && st.schedule.on) { st.schedule = { on: false, since: Date.now() }; write(st); }
+    return true;
+  };
+
+  return { run, view, settings, adminCheck, setSchedule, installSmartctl, findTools, uninstalled, syncTraces, setNext: (t) => { nextAt = t; } };
 }
+
+let active = null;
 
 function activate(host) {
   const { exec } = host.core('util');
@@ -291,6 +321,7 @@ function activate(host) {
     elevate: plat && typeof plat.elevatedBatch === 'function' ? (steps, opts) => plat.elevatedBatch(steps, opts) : undefined,
     pkgHint: plat && typeof plat.pkgHint === 'function' ? (p) => plat.pkgHint(p) : undefined,
   });
+  active = svc;
   host.router.get('/disk-health', (req, res) => res.json(svc.view()));
   host.router.post('/disk-health/refresh', async (req, res) => { await svc.run(); res.json(svc.view()); });
   host.router.post('/disk-health/admin-check', async (req, res) => { const r = await svc.adminCheck(); res.json({ ...r, view: svc.view() }); });
@@ -309,6 +340,12 @@ function activate(host) {
   host.on('shutdown', () => clearTimeout(timer));
 }
 
-function deactivate() {}
+function deactivate() { active = null; }
 
-module.exports = { activate, deactivate, createService };
+/**
+ * Only when the extension is removed (never when switched off or updated – SDK 3.3). Hostwerk removes the ticked traces
+ * (task, folder) itself with one admin prompt; here only the own state is brought in line.
+ */
+function uninstall(host, { traces = [] } = {}) { if (active) active.uninstalled(traces); }
+
+module.exports = { activate, deactivate, uninstall, createService };

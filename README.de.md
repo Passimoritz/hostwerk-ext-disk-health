@@ -30,8 +30,9 @@ Fehlerzähler brauchen Administratorrechte – Hostwerk selbst läuft weiter ohn
   `\Hostwerk\DiskHealth` ein: Sie läuft als SYSTEM beim Start und stündlich, führt **nur** das Lese-Skript aus und schreibt
   das Ergebnis nach `%ProgramData%\HostwerkDiskHealth\smart.json`. Hostwerk liest die Datei ohne Administratorrechte. Der
   Ordner gehört den Administratoren (Benutzer dürfen nur lesen) – ohne Admin-Rechte kann niemand das Skript austauschen.
-  Abschalten fragt noch einmal nach und entfernt Aufgabe und Ordner. Wird die Erweiterung deinstalliert, merkt die Aufgabe
-  das beim nächsten Lauf und entfernt sich samt Ordner selbst.
+  Abschalten fragt noch einmal nach und entfernt Aufgabe und Ordner. Hostwerk 3.0+ zeigt beide im Erweiterungs-Pop-up
+  („Was sie auf deinem PC angelegt hat“) und entfernt sie beim Deinstallieren gleich mit – eine Administrator-Rückfrage. Bei
+  älteren Hostwerk-Versionen merkt die Aufgabe beim nächsten Lauf, dass die Erweiterung weg ist, und entfernt sich samt Ordner selbst.
 - **Linux:** `smartctl` über `pkexec` (eine Passwortabfrage). Ohne root liefert udisks Temperatur, Betriebszeit und defekte
   Sektoren, `/sys/block` das Nötigste.
 
@@ -72,7 +73,7 @@ Native Erweiterungen laufen als Teil von Hostwerk (eigener Server- und Oberfläc
 ## Daten und Spuren
 
 - `data/disk-health/state.json` – die letzte Messung, die letzten Admin-Werte, ein kleiner Verlauf je Laufwerk (etwa ein Monat, eine Messung je Stunde oder bei jeder Änderung) und welche Probleme schon gemeldet wurden. Laufwerke, die 90 Tage fehlen, werden vergessen. Beim Entfernen der Erweiterung bleibt die Datei erhalten.
-- Nur mit *Regelmäßig prüfen*: die Windows-Aufgabe `\Hostwerk\DiskHealth` und der Ordner `%ProgramData%\HostwerkDiskHealth` – die Seite zeigt beide (ⓘ neben dem Schalter); Abschalten entfernt sie, beim Deinstallieren entfernt sich die Aufgabe selbst.
+- Nur mit *Regelmäßig prüfen*: die Windows-Aufgabe `\Hostwerk\DiskHealth` und der Ordner `%ProgramData%\HostwerkDiskHealth` – die Seite zeigt beide (ⓘ neben dem Schalter); Abschalten entfernt sie; Deinstallieren auch (Hostwerk 3.0+, eine Rückfrage) – sonst entfernt sich die Aufgabe selbst.
 
 ## Entwickeln
 

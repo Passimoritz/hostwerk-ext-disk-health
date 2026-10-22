@@ -246,3 +246,43 @@ test('Linux: smartctl über pkexec, ein Lauf für alle Geräte', async () => {
   assert.strictEqual(svc.view().drives.length, 1);
   assert.strictEqual(svc.view().smartctl.hint, 'sudo apt install smartmontools');
 });
+
+test('Spuren (Hostwerk 3.0+, SDK 3.3): Aufgabe und Ordner werden gemeldet, beim Abschalten abgemeldet; Entfernen-Haken', async () => {
+  const f = fakeHost();
+  const traces = new Map();
+  f.host.traces = { add: (t) => { traces.set(t.id, t); return t; }, remove: (id) => traces.delete(id), list: () => [...traces.values()] };
+  const ok = { code: 0, steps: [{ code: 0, out: `${H.MARK_START}{"ok":true}${H.MARK_END}` }] };
+  const io = windowsIo({ answers: [ok, ok] });
+  const svc = createService(f.host, io);
+  assert.strictEqual(traces.size, 0, 'nichts eingerichtet → keine Spuren');
+  await svc.setSchedule(true);
+  assert.deepStrictEqual([...traces.keys()].sort(), ['folder', 'task']);
+  const task = traces.get('task'); const folder = traces.get('folder');
+  assert.deepStrictEqual([task.kind, task.admin, task.remove.name], ['task', true, `${A.TASK_FOLDER}${A.TASK_NAME}`]);
+  assert.deepStrictEqual([folder.kind, folder.admin, folder.remove.path], ['dir', true, A.taskDir(io.env)]);
+  // Kern-Prüfung: die Spuren sind gültig (gleiche Regeln wie Hostwerk)
+  let core = null; try { core = require(path.join(__dirname, '..', '..', '..', 'hostwerk', 'server', 'core', 'exttraces')); } catch { /* Hostwerk nicht daneben */ }
+  if (core) { assert.doesNotThrow(() => core.normalize(task)); }
+  await svc.setSchedule(false);
+  assert.strictEqual(traces.size, 0, 'abgeschaltet → Aufgabe und Ordner weg, Spuren abgemeldet');
+
+  // Bestehende Einrichtung (vor 1.3.0): beim Start gemeldet
+  const st = path.join(f.host.ctx.paths.data, 'disk-health', 'state.json');
+  const cur = JSON.parse(fs.readFileSync(st, 'utf8')); cur.schedule = { on: true, since: Date.now() }; fs.writeFileSync(st, JSON.stringify(cur));
+  const again = createService(f.host, windowsIo());
+  assert.deepStrictEqual([...traces.keys()].sort(), ['folder', 'task']);
+  // Entfernen: nur mit angehakter Aufgabe gilt der Zeitplan als aus
+  assert.strictEqual(again.uninstalled([{ id: 'folder' }]), false);
+  assert.strictEqual(again.uninstalled([{ id: 'task' }]), true);
+  assert.strictEqual(JSON.parse(fs.readFileSync(st, 'utf8')).schedule.on, false);
+  const ext = require('../server/index');
+  assert.strictEqual(typeof ext.uninstall, 'function');
+});
+
+test('Ältere Hostwerk-Version ohne host.traces: alles wie bisher, Aufgabe räumt selbst auf', async () => {
+  const f = fakeHost();
+  const ok = { code: 0, steps: [{ code: 0, out: `${H.MARK_START}{"ok":true}${H.MARK_END}` }] };
+  const svc = createService(f.host, windowsIo({ answers: [ok] }));
+  assert.strictEqual(svc.syncTraces(true), false);
+  assert.deepStrictEqual(await svc.setSchedule(true), { ok: true });
+});
