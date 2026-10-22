@@ -216,5 +216,6 @@
   "Commands that took too long. Often the cable or the power supply.": "Befehle, die zu lange gedauert haben. Oft liegt es am Kabel oder an der Stromversorgung.",
   "How often the drive moved data away from a weak sector.": "Wie oft das Laufwerk Daten aus einem schwachen Sektor umgelagert hat.",
   "How much data has been read from the drive in total.": "Wie viele Daten insgesamt vom Laufwerk gelesen wurden.",
-  "$patterns": []
+  "$patterns": [],
+  "Health, wear and temperature of every drive – checked regularly.": "Zustand, Verschleiß und Temperatur jedes Laufwerks – regelmäßig geprüft."
 }

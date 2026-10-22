@@ -386,6 +386,7 @@ function DiskHealthPage() {
       <div className="page-head">
         <div>
           <h1><Activity /> Drive health <InfoTip pop title="Drive health">Hostwerk reads the S.M.A.R.T. values of every drive – temperature, wear, errors – and tells you when something gets worse. Nothing on a drive is ever changed.</InfoTip></h1>
+          <p>Health, wear and temperature of every drive – checked regularly.</p>
         </div>
       </div>
       {st.error && <Callout kind="err" dismissible={false}>{st.error}</Callout>}

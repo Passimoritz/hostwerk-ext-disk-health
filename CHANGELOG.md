@@ -1,3 +1,7 @@
+## 1.3.1
+
+- Page head like every Hostwerk page: one sentence under the title, the longer explanation stays behind ⓘ. / Seitenkopf wie jede Hostwerk-Seite: ein Satz unter dem Titel, die längere Erklärung bleibt hinter ⓘ.
+
 ## 1.3.0
 
 - Traces (Hostwerk 3.0+, SDK 3.3): the Windows task `\Hostwerk\DiskHealth` and the folder `%ProgramData%\HostwerkDiskHealth` are reported to Hostwerk – listed in the extension pop-up under "What it set up on your PC" and removed with one administrator prompt when you uninstall the extension (ticked in the uninstall dialog, also in maintenance and "Remove Hostwerk"). Existing set-ups are reported on the next start. The task's own clean-up stays as the fallback for older Hostwerk versions. / Spuren (Hostwerk 3.0+, SDK 3.3): Die Windows-Aufgabe `\Hostwerk\DiskHealth` und der Ordner `%ProgramData%\HostwerkDiskHealth` werden Hostwerk gemeldet – im Erweiterungs-Pop-up unter „Was sie auf deinem PC angelegt hat“ und beim Deinstallieren mit einer Administrator-Rückfrage entfernt (angehakt im Deinstallieren-Dialog, auch in der Wartung und bei „Hostwerk entfernen“). Bestehende Einrichtungen meldet sie beim nächsten Start. Das Selbstaufräumen der Aufgabe bleibt als Rückfall für ältere Hostwerk-Versionen.
