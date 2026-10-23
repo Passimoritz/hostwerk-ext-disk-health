@@ -186,9 +186,23 @@ function DriveCard({ d, limits, onRefresh, onAdmin, canElevate }) {
         {d.bus === 'USB' ? <Usb size={16} aria-hidden="true" /> : <HardDrive size={16} aria-hidden="true" />}
         <div className="grow dh-title">
           <h3 title={d.name}>{d.name}</h3>
-          <span className="sub">{kind}</span>
+          <span className="sub">{kind}{d.smartAt ? ` · ${t('Values read {when}', { when: rel(d.smartAt) })}` : ''}</span>
         </div>
-        <div className="right"><span className={`badge ${lv.badge}`}><lv.icon size={12} aria-hidden="true" />{t(lv.label)}</span></div>
+        {/* Was früher eine eigene Fußleiste war (Werte zeigen, Seriennummer), steht jetzt im Kartenkopf – eine Zeile weniger je Laufwerk */}
+        <div className="right">
+          {d.serial && (
+            <button type="button" className="btn ghost xs dh-serial" title={t('Copy serial number')} aria-label={t('Copy serial number {serial}', { serial: d.serial })} onClick={() => copy(d.serial)}>
+              <span className="mono">{d.serial}</span><Copy size={13} aria-hidden="true" />
+            </button>
+          )}
+          {d.attributes && d.attributes.length > 0 && (
+            <button type="button" className="btn ghost sm" aria-expanded={open} aria-controls={detailsId} onClick={() => setOpen(!open)}>
+              <ChevronDown size={14} className={open ? 'dh-rot' : undefined} aria-hidden="true" />
+              {open ? t('Hide details') : pl(d.attributes.length, 'Show {n} value', 'Show all {n} values')}
+            </button>
+          )}
+          <span className={`badge ${lv.badge}`}><lv.icon size={12} aria-hidden="true" />{t(lv.label)}</span>
+        </div>
       </div>
 
       <div className="card-body stack dh-body">
@@ -267,20 +281,6 @@ function DriveCard({ d, limits, onRefresh, onAdmin, canElevate }) {
         {open && <div id={detailsId}><AttrTable d={d} /></div>}
       </div>
 
-      <div className="dh-card-foot">
-        {d.attributes && d.attributes.length > 0 && (
-          <button type="button" className="btn ghost sm" aria-expanded={open} aria-controls={detailsId} onClick={() => setOpen(!open)}>
-            <ChevronDown size={14} className={open ? 'dh-rot' : undefined} aria-hidden="true" />
-            {open ? t('Hide details') : pl(d.attributes.length, 'Show {n} value', 'Show all {n} values')}
-          </button>
-        )}
-        {d.smartAt && <span className="dh-foot-meta">{t('Values read {when}', { when: rel(d.smartAt) })}</span>}
-        {d.serial && (
-          <button type="button" className="btn ghost sm dh-serial" title={t('Copy serial number')} aria-label={t('Copy serial number {serial}', { serial: d.serial })} onClick={() => copy(d.serial)}>
-            <span className="mono">{d.serial}</span><Copy size={13} aria-hidden="true" />
-          </button>
-        )}
-      </div>
     </article>
   );
 }

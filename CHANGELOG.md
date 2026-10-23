@@ -1,3 +1,7 @@
+## 1.3.2
+
+- “Show values” and the serial number sit in the card head instead of an own foot line – one line less per drive / „Werte zeigen“ und die Seriennummer stehen im Kartenkopf statt in einer eigenen Fußzeile – eine Zeile weniger je Laufwerk
+
 ## 1.3.1
 
 - Page head like every Hostwerk page: one sentence under the title, the longer explanation stays behind ⓘ. / Seitenkopf wie jede Hostwerk-Seite: ein Satz unter dem Titel, die längere Erklärung bleibt hinter ⓘ.
