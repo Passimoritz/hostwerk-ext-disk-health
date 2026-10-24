@@ -1,3 +1,7 @@
+## 1.3.3
+
+- New animated icon and banner in the common Hostwerk style (isometric block). / Neues animiertes Symbol und Banner im gemeinsamen Hostwerk-Stil (isometrischer Block).
+
 ## 1.3.2
 
 - “Show values” and the serial number sit in the card head instead of an own foot line – one line less per drive / „Werte zeigen“ und die Seriennummer stehen im Kartenkopf statt in einer eigenen Fußzeile – eine Zeile weniger je Laufwerk
