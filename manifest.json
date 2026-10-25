@@ -9,7 +9,7 @@
     "de": "Zustand jedes Laufwerks auf einen Blick: Temperatur, Abnutzung, geschätzte Restlebensdauer, Lese- und Schreibfehler und Betriebsstunden (S.M.A.R.T.). Liest die Werte mit einer einzigen Administrator-Rückfrage – auf Wunsch regelmäßig über eine Windows-Aufgabe. Meldet sich über Hostwerks Benachrichtigungen, wenn Fehler wachsen, es zu warm wird oder ein Laufwerk verschleißt. Mit Kachel für die Übersicht.",
     "en": "The state of every drive at a glance: temperature, wear, estimated life left, read and write errors and power-on hours (S.M.A.R.T.). Reads the values with a single administrator prompt – regularly through a Windows task if you like. Alerts you through Hostwerk's notifications when errors grow, a drive runs hot or wears out. With a dashboard tile."
   },
-  "version": "1.3.3",
+  "version": "1.3.4",
   "author": "Hostwerk",
   "homepage": "https://github.com/Passimoritz/hostwerk-ext-disk-health",
   "license": "MIT",

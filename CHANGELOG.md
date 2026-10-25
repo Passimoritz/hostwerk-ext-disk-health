@@ -1,3 +1,7 @@
+## 1.3.4
+
+- The package contains only the files of the repository – no leftovers of the test run (the catalog had rejected 1.3.3). / Das Paket enthält nur die Dateien des Repositorys – keine Reste des Testlaufs (der Katalog hatte 1.3.3 abgelehnt).
+
 ## 1.3.3
 
 - New animated icon and banner in the common Hostwerk style (isometric block). / Neues animiertes Symbol und Banner im gemeinsamen Hostwerk-Stil (isometrischer Block).
