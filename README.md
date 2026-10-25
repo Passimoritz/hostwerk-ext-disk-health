@@ -1,6 +1,8 @@
-![Drive health](banner.svg)
+![Drives](banner.svg)
 
-# Drive health
+# Drives
+
+> **Since 2.0 “Drives”:** this also contains the former extension “Storage per service”. Under System → Drives a switch shows **Condition** (S.M.A.R.T., as before) and **Used space** (who takes how much space, history and forecast – the history is now written by the server part once an hour). Anyone who had “Storage per service” gets this version automatically; Hostwerk takes the history over and removes the old one. With the setting “Check the drive condition” off there is only the used space, without drive queries.
 
 The state of every drive at a glance: temperature, wear, read and write errors and power-on hours (S.M.A.R.T.). Alerts you through Hostwerk's notifications when errors grow, a drive runs hot or wears out. With a dashboard tile.
 

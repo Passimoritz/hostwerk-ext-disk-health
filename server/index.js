@@ -66,6 +66,8 @@ function createService(host, io) {
     const wearWarn = Number.isFinite(s.wearWarn) ? s.wearWarn : 80;
     return {
       notify: s.notify !== false,
+      // 2.0: Zustand (S.M.A.R.T.) abschaltbar – wer nur die Belegung sehen will, bekommt keine Laufwerks-Abfragen
+      smart: s.smart !== false,
       interval: Math.max(10, Number.isFinite(s.interval) ? s.interval : 30),
       limits: { tempWarn, tempCrit: tempWarn + 10, wearWarn, wearCrit: wearWarn >= 95 ? 99 : 95 },
     };
@@ -282,6 +284,7 @@ function createService(host, io) {
       platform,
       nextAt,
       limits: settings().limits,
+      smart: settings().smart, // 2.0: Zustand abgeschaltet → die Seite zeigt nur die Belegung
       admin: st.admin ? { at: st.admin.at, source: st.admin.source, smartctl: !!st.admin.smartctl, fresh: now - st.admin.at < FRESH_MS } : null,
       adminBusy,
       canElevate,
@@ -333,11 +336,14 @@ function activate(host) {
   const schedule = (ms) => {
     clearTimeout(timer);
     svc.setNext(Date.now() + ms);
-    timer = setTimeout(() => { svc.run().catch(() => {}).finally(() => schedule(svc.settings().interval * 60000)); }, ms);
+    // 2.0: Zustand abgeschaltet (Einstellung „smart“) – dann keine Laufwerks-Abfragen, die Belegung läuft weiter
+    timer = setTimeout(() => { (svc.settings().smart ? svc.run() : Promise.resolve()).catch(() => {}).finally(() => schedule(svc.settings().interval * 60000)); }, ms);
     if (timer.unref) timer.unref();
   };
   schedule(20000);
   host.on('shutdown', () => clearTimeout(timer));
+  // 2.0: Teil „Belegung“ (früher Erweiterung „Speicher je Dienst“) – Verlauf des Füllstands im Server-Teil
+  require('./usage').mount(host);
 }
 
 function deactivate() { active = null; }

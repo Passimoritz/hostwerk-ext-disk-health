@@ -1,6 +1,8 @@
-![Festplatten-Gesundheit](banner.svg)
+![Laufwerke](banner.svg)
 
-# Festplatten-Gesundheit
+# Laufwerke
+
+> **Seit 2.0 „Laufwerke“:** Hier steckt auch die frühere Erweiterung „Speicher je Dienst“. Unter System → Laufwerke zeigt ein Umschalter **Zustand** (S.M.A.R.T., wie bisher) und **Belegung** (wer wie viel Platz belegt, Verlauf und Prognose – der Verlauf wird jetzt stündlich im Server-Teil mitgeschrieben). Wer „Speicher je Dienst“ hatte, bekommt diese Fassung automatisch; Hostwerk übernimmt den Verlauf und entfernt die alte. Mit der Einstellung „Zustand der Laufwerke prüfen“ aus gibt es nur die Belegung, ohne Laufwerks-Abfragen.
 
 Zustand jedes Laufwerks auf einen Blick: Temperatur, Abnutzung, Lese- und Schreibfehler und Betriebsstunden (S.M.A.R.T.). Meldet sich über Hostwerks Benachrichtigungen, wenn Fehler wachsen, es zu warm wird oder ein Laufwerk verschleißt. Mit Kachel für die Übersicht.
 

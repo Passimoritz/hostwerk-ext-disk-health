@@ -110,3 +110,22 @@
   .dh-status-actions { width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) { .dh-card .card-head .btn svg { transition: none; } }
+
+/* ---------- 2.0: Laufwerke – Umschalter und Teil „Belegung“ (bis 1.5 „Speicher je Dienst“) ---------- */
+.dh-views { margin-bottom: var(--sp-3); }
+.dh-du-line { margin-bottom: var(--sp-3); }
+.dh-du-bar { height: var(--sp-2); border-radius: var(--r-xs); background: var(--surface-2); overflow: hidden; margin: var(--sp-2) 0 var(--sp-1); }
+.dh-du-bar span { display: block; height: 100%; background: var(--accent); border-radius: var(--r-xs); }
+.dh-du-bar span.warn { background: var(--warn); }
+.dh-du-bar span.err { background: var(--err); }
+.dh-du-bar span.ok { background: var(--ok); }
+.dh-du-stack { gap: var(--sp-2); }
+.dh-du-gap { margin-bottom: var(--sp-4); }
+.dh-du-item { align-items: flex-start; }
+.dh-du-main { min-width: 0; }
+.dh-du-trend { display: flex; align-items: center; gap: var(--sp-3); margin-top: var(--sp-3); }
+.dh-du-spark { width: calc(var(--sp-8) * 4); height: calc(var(--sp-8) + var(--sp-2)); color: var(--accent); flex: none; }
+.dh-du-tip { margin-top: var(--sp-2); }
+.dh-du-kinds { flex-wrap: wrap; }
+.dh-du-kinds button { min-height: var(--sp-6); }
+.dh-du-skel { height: calc(var(--sp-8) * 5); }

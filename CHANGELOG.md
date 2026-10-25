@@ -1,3 +1,11 @@
+# Changelog
+
+## 2.0.0
+
+- Now "Drives": the former extension "Storage per service" lives here (SDK 3.8 `replaces`) – one tab System → Drives with the parts "Condition" and "Used space", one tile with fill level and drive health. Hostwerk installs this version for everyone who had "Storage per service" and removes it. / Jetzt „Laufwerke“: Die frühere Erweiterung „Speicher je Dienst“ steckt hier (SDK 3.8 `replaces`) – ein Reiter System → Laufwerke mit den Teilen „Zustand“ und „Belegung“, eine Kachel mit Füllstand und Zustand. Hostwerk installiert diese Fassung für alle mit „Speicher je Dienst“ und entfernt sie.
+- The fill-level history is now written by the server part once an hour – also while the page is closed; the old history is taken over once. / Den Verlauf des Füllstands schreibt jetzt der Server-Teil stündlich mit – auch bei geschlossener Seite; der alte Verlauf wird einmal übernommen.
+- New setting "Check the drive condition (S.M.A.R.T.)": off = only the used space, no drive queries. / Neue Einstellung „Zustand der Laufwerke prüfen (S.M.A.R.T.)“: aus = nur die Belegung, keine Laufwerks-Abfragen.
+
 ## 1.3.4
 
 - The package contains only the files of the repository – no leftovers of the test run (the catalog had rejected 1.3.3). / Das Paket enthält nur die Dateien des Repositorys – keine Reste des Testlaufs (der Katalog hatte 1.3.3 abgelehnt).

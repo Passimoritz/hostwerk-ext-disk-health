@@ -1,13 +1,14 @@
 import { useEffect, useId, useState } from 'react';
 import {
   Activity, HardDrive, RefreshCw, Thermometer, Clock, Copy, AlertTriangle, CheckCircle2, HelpCircle, XCircle, ShieldCheck, ChevronDown,
-  Hourglass, Bell, Download, Usb, Wrench,
+  Hourglass, Bell, Download, Usb, Wrench, Database,
 } from 'lucide-react';
 import { post, useApi, fmtBytes, fmtDate, fmtNumber } from '@hostwerk/api';
-import { Btn, Empty, Loading, Callout, InfoTip, TileEmpty, Sparkline, Switch, toast, confirmDialog } from '@hostwerk/ui';
+import { Btn, Empty, Loading, Callout, InfoTip, TileEmpty, Sparkline, Switch, Seg, toast, confirmDialog } from '@hostwerk/ui';
 import { contextMenu } from '@hostwerk/kit';
 import { t, pl as hostPl } from '@hostwerk/i18n';
 import { describe, COUNTER_LABEL, ATTR_LABEL, ATTR_INFO } from '../../server/texts';
+import { UsagePanel, UsageLine } from './usage';
 import './style.css';
 
 /*
@@ -330,7 +331,8 @@ function StatusBar({ d, drives, busy, onRefresh, onAdmin, onSchedule }) {
 
 /* ---------------- Page ---------------- */
 
-function DiskHealthPage() {
+/** Teil „Zustand“ der Seite „Laufwerke“ (bis 1.3 die ganze Seite „Festplatten-Gesundheit“). */
+function HealthPanel() {
   const st = useApi('/disk-health', [], { live: false });
   const [busy, setBusy] = useState(false);
   const d = st.data;
@@ -382,13 +384,7 @@ function DiskHealthPage() {
   const sch = (d && d.schedule) || {};
   const needsAdmin = drives.some((x) => x.partial && !x.smartAt);
   return (
-    <div className="page fade-in dh-page">
-      <div className="page-head">
-        <div>
-          <h1><Activity /> Drive health <InfoTip pop title="Drive health">Hostwerk reads the S.M.A.R.T. values of every drive – temperature, wear, errors – and tells you when something gets worse. Nothing on a drive is ever changed.</InfoTip></h1>
-          <p>Health, wear and temperature of every drive – checked regularly.</p>
-        </div>
-      </div>
+    <div className="dh-health">
       {st.error && <Callout kind="err" dismissible={false}>{st.error}</Callout>}
       {st.loading && !d ? <Loading /> : !d || !d.at ? (
         <Empty icon={HardDrive} title="Not checked yet" text="The first check runs shortly after Hostwerk starts – or right now." action={<Btn className="primary" icon={RefreshCw} busy={busy} onClick={refresh}>Check now</Btn>} />
@@ -450,15 +446,44 @@ function DiskHealthPage() {
   );
 }
 
-/** Dashboard tile: the worst drive first, at most four. */
+/**
+ * Seite „Laufwerke“ (2.0): Zustand (S.M.A.R.T., bis 1.3 „Festplatten-Gesundheit“) und Belegung (bis 1.5 die Erweiterung
+ * „Speicher je Dienst“) unter einem Dach. Ist der Zustand in den Einstellungen aus, zeigt sie nur die Belegung.
+ */
+function DrivesPage() {
+  const st = useApi('/disk-health', [], { live: false });
+  const smart = !(st.data && st.data.smart === false);
+  const [view, setView] = useState('health');
+  const cur = smart ? view : 'usage';
+  return (
+    <div className="page fade-in dh-page">
+      <div className="page-head">
+        <div>
+          <h1><Database /> Drives <InfoTip pop title="Drives">Hostwerk reads the S.M.A.R.T. values of every drive – temperature, wear, errors – and tells you when something gets worse, and shows how full the drive is and who uses the space. Nothing on a drive is ever changed.</InfoTip></h1>
+          <p>How healthy and how full your drives are – checked regularly.</p>
+        </div>
+      </div>
+      {smart && (
+        <div className="sub-nav dh-views">
+          <Seg value={cur} onChange={setView} options={[{ id: 'health', label: t('Condition'), icon: Activity }, { id: 'usage', label: t('Used space'), icon: Database }]} />
+        </div>
+      )}
+      {cur === 'health' ? <HealthPanel /> : <UsagePanel />}
+    </div>
+  );
+}
+
+/** Dashboard tile: how full the drive is, then the worst drive first, at most four. */
 function DiskHealthTile() {
   const st = useApi('/disk-health', [], { live: false });
   const d = st.data;
   if (st.loading && !d) return <div className="card-body"><div className="skeleton dh-skel" /></div>;
-  if (!d || !d.at || !d.drives.length) return <TileEmpty icon={HardDrive} text="No drive checked yet" href="#/ext/disk-health" />;
+  if (d && d.smart === false) return <div className="card-body dh-tile"><UsageLine /></div>;
+  if (!d || !d.at || !d.drives.length) return <div className="card-body dh-tile"><UsageLine /><TileEmpty icon={HardDrive} text="No drive checked yet" href="#/ext/disk-health" /></div>;
   const drives = [...d.drives].sort(byLevel).slice(0, 4);
   return (
     <div className="card-body dh-tile">
+      <UsageLine />
       {drives.map((x) => {
         const lv = LEVEL[x.level] || LEVEL.unknown;
         const facts = [has(x.tempC) && !x.tempStale ? `${x.tempC} °C` : null, has(x.wearPct) ? t('{n} % worn', { n: x.wearPct }) : null].filter(Boolean).join(' · ');
@@ -475,11 +500,12 @@ function DiskHealthTile() {
 }
 
 export default {
-  pages: { main: DiskHealthPage },
+  pages: { main: DrivesPage },
   slots: {
     // Seit Hostwerk 3.0 (SDK 3.2) ohne eigenen Seitenleisten-Eintrag ("nav": false) – die ganze Seite als Reiter im passenden Bereich;
-    // Hostwerk blendet dabei ihren Titel aus (Reiter + Herkunftszeile sagen schon, was es ist), die Knöpfe bleiben
-    'system.tabs': [{ id: 'drives', title: 'Drive health', icon: HardDrive, Component: DiskHealthPage, order: 40 }],
-    'dashboard.tiles': [{ id: 'drives', title: 'Drive health', icon: HardDrive, size: 'third', Component: DiskHealthTile }],
+    // Hostwerk blendet dabei ihren Titel aus (Reiter + Herkunftszeile sagen schon, was es ist), die Knöpfe bleiben.
+    // 2.0: EIN Reiter „Laufwerke“ unter System (vorher „Festplatten-Gesundheit“ und „Speicherplatz“ von „Speicher je Dienst“)
+    'system.tabs': [{ id: 'drives', title: 'Drives', icon: HardDrive, Component: DrivesPage, order: 40 }],
+    'dashboard.tiles': [{ id: 'drives', title: 'Drives', icon: HardDrive, size: 'third', Component: DiskHealthTile }],
   },
 };

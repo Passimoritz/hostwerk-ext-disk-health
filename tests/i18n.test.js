@@ -11,7 +11,8 @@ const unescape = (s) => s.replace(/\\n/g, '\n').replace(/\\'/g, "'");
 
 /** English texts from the interface source: t('…'), pl(n, '…', '…'), text props, JSX text, the label maps. */
 function uiTexts() {
-  const src = fs.readFileSync(path.join(__dirname, '..', 'ui', 'src', 'index.jsx'), 'utf8');
+  // 2.0: auch der Teil „Belegung“ (ui/src/usage.jsx, früher Erweiterung „Speicher je Dienst“)
+  const src = ['index.jsx', 'usage.jsx'].map((n) => fs.readFileSync(path.join(__dirname, '..', 'ui', 'src', n), 'utf8')).join('\n');
   const out = new Set();
   const add = (s) => { const v = unescape(s).trim(); if (/[A-Za-z]{2}/.test(v)) out.add(v); };
   for (const m of src.matchAll(/\bt\('((?:[^'\\]|\\.)*)'/g)) add(m[1]);
@@ -20,7 +21,7 @@ function uiTexts() {
   for (const m of src.matchAll(/\b(?:title|text|tipTitle)="([^"]+)"/g)) add(m[1]);
   for (const m of src.matchAll(/>([^<>{}]*[A-Za-z][^<>{}]*)</g)) if (!/[=;()]|=>/.test(m[1])) add(m[1]);
   // LEVEL/MEDIA/REASON: label: '…' and 'key': '…' inside the maps
-  for (const name of ['LEVEL', 'MEDIA', 'REASON']) {
+  for (const name of ['LEVEL', 'MEDIA', 'REASON', 'KIND', 'PART']) {
     const block = src.slice(src.indexOf(`const ${name} = {`), src.indexOf('};', src.indexOf(`const ${name} = {`)));
     for (const m of block.matchAll(/(?:label: |: )'((?:[^'\\]|\\.)*)'/g)) add(m[1]);
   }
