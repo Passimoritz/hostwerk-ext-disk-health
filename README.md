@@ -2,7 +2,7 @@
 
 # Drives
 
-> **Since 2.0 “Drives”:** this also contains the former extension “Storage per service”. Under System → Drives a switch shows **Condition** (S.M.A.R.T., as before) and **Used space** (who takes how much space, history and forecast – the history is now written by the server part once an hour). Anyone who had “Storage per service” gets this version automatically; Hostwerk takes the history over and removes the old one. With the setting “Check the drive condition” off there is only the used space, without drive queries.
+> **Since 2.0 “Drives”:** this also contains the former extension “Storage per service”. Under System → Performance → Drives (older Hostwerk: System → Drives) a switch shows **Condition** (S.M.A.R.T., as before) and **Used space** (who takes how much space, history and forecast – the history is now written by the server part once an hour). Anyone who had “Storage per service” gets this version automatically; Hostwerk takes the history over and removes the old one. With the setting “Check the drive condition” off there is only the used space, without drive queries.
 
 The state of every drive at a glance: temperature, wear, read and write errors and power-on hours (S.M.A.R.T.). Alerts you through Hostwerk's notifications when errors grow, a drive runs hot or wears out. With a dashboard tile.
 
@@ -12,7 +12,7 @@ The state of every drive at a glance: temperature, wear, read and write errors a
 
 ## What it does
 
-- **Where:** System → Drive health and the dashboard tile – no own sidebar entry since 1.2.0; the full page stays under Extensions → Open
+- **Where:** System → Performance → Drives (Hostwerk before SDK 3.12: System → Drives), warnings also on System → Overview, and the dashboard tile – no own sidebar entry since 1.2.0; the full page stays under Extensions → Open
 - **Status bar** on top: all drives healthy, needs attention or in danger – with the last and next check, the age of the administrator values and the buttons *Check now* and *Check with admin rights*
 - **One card per drive** in a grid: model, kind (NVMe/SATA SSD, hard disk, USB), size and state; key figures in Hostwerk's stat style – temperature with traffic light, wear with bar, estimated life left, power-on time (hard disks: reallocated sectors and errors instead); data written/read, spare, power cycles, unsafe shutdowns, every error counter; temperature and wear trend
 - **Details** per drive: every S.M.A.R.T. value as a table (current, worst, limit, raw value) with an explanation per row; values below the manufacturer's limit are marked

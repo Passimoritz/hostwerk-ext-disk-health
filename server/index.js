@@ -26,6 +26,8 @@ const KEEP_SAMPLES = 720; // about a month at one sample per hour
 /** Administrator values younger than this count as "now" (temperature is judged, drives only they know are shown). */
 const FRESH_MS = 2 * 3600000;
 const TOOLS_TTL = 10 * 60000;
+/** Section in System → Performance (Hostwerk with SDK 3.12) – where the points on System → Overview lead */
+const OVERVIEW_HREF = '#/system/leistung/drives';
 
 /**
  * The service itself – io = { exec, readdir, readFile, platform?, env?, exists?, elevate?(steps, opts), pkgHint?(pkg) }
@@ -307,7 +309,28 @@ function createService(host, io) {
     return true;
   };
 
-  return { run, view, settings, adminCheck, setSchedule, installSmartctl, findTools, uninstalled, syncTraces, setNext: (t) => { nextAt = t; } };
+  /**
+   * Points for System → Overview (SDK 3.12, host.contribute('system.overview')) from the last reading – no drive query:
+   * every drive with a warning or an error (warn/err also land in "Needs you"), otherwise one "all fine" point on the
+   * card "Performance" (area load). Nothing while the condition check is switched off or no drive was read yet.
+   */
+  const overviewPoints = () => {
+    if (!settings().smart) return [];
+    const last = read().last;
+    const drives = last && Array.isArray(last.drives) ? last.drives : [];
+    if (!drives.length) return [];
+    const bad = drives.filter((d) => d.level === 'err' || d.level === 'warn').sort((a, b) => (a.level === b.level ? 0 : a.level === 'err' ? -1 : 1));
+    if (!bad.length) return [{ area: 'load', level: 'ok', title: host.t('Drive health'), detail: host.t('Drives without problems: {n}', { n: drives.length }), href: OVERVIEW_HREF }];
+    return bad.slice(0, 10).map((d) => ({
+      area: 'load',
+      level: d.level,
+      title: d.level === 'err' ? host.t('Drive “{name}” is in danger', { name: d.name }) : host.t('Drive “{name}” needs attention', { name: d.name }),
+      detail: (d.problems || []).slice(0, 2).map((x) => describe(x, host.t)).join(' · '),
+      href: OVERVIEW_HREF,
+    }));
+  };
+
+  return { run, view, settings, adminCheck, setSchedule, installSmartctl, findTools, uninstalled, syncTraces, overviewPoints, setNext: (t) => { nextAt = t; } };
 }
 
 let active = null;
@@ -330,6 +353,8 @@ function activate(host) {
   host.router.post('/disk-health/admin-check', async (req, res) => { const r = await svc.adminCheck(); res.json({ ...r, view: svc.view() }); });
   host.router.post('/disk-health/schedule', async (req, res) => { const r = await svc.setSchedule(!!(req.body && req.body.on)); res.json({ ...r, view: svc.view() }); });
   host.router.post('/disk-health/smartctl/install', async (req, res) => { const r = await svc.installSmartctl(); res.json({ ...r, view: svc.view() }); });
+  // S.M.A.R.T. warnings on System → Overview (new in SDK 3.12 – older Hostwerk versions do not know the type and throw)
+  try { host.contribute('system.overview', { list: () => svc.overviewPoints() }); } catch { /* older Hostwerk */ }
 
   // First reading shortly after the start (Hostwerk is busy starting services), then in the chosen rhythm
   let timer = null;

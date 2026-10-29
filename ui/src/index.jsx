@@ -499,12 +499,23 @@ function DiskHealthTile() {
   );
 }
 
+/** Die ganze Seite als Abschnitt: wie beim Reiter ohne eigenen Titelblock (.ext-embedded), die Knöpfe bleiben. */
+function DrivesSection() {
+  return <div className="ext-embedded"><DrivesPage /></div>;
+}
+
 export default {
   pages: { main: DrivesPage },
+  sections: {
+    // 2.1 (Hostwerk mit SDK 3.12): Abschnitt in System → Leistung (#/system/leistung/drives), neben „Jetzt“ und „Verlauf“;
+    // S.M.A.R.T.-Warnungen stehen zusätzlich auf System → Lage (server/index.js, system.overview)
+    'system.leistung': [{ id: 'drives', title: 'Drives', icon: HardDrive, Component: DrivesSection, order: 40 }],
+  },
   slots: {
-    // Seit Hostwerk 3.0 (SDK 3.2) ohne eigenen Seitenleisten-Eintrag ("nav": false) – die ganze Seite als Reiter im passenden Bereich;
-    // Hostwerk blendet dabei ihren Titel aus (Reiter + Herkunftszeile sagen schon, was es ist), die Knöpfe bleiben.
-    // 2.0: EIN Reiter „Laufwerke“ unter System (vorher „Festplatten-Gesundheit“ und „Speicherplatz“ von „Speicher je Dienst“)
+    // Ältere Hostwerk (vor SDK 3.12): EIN Reiter „Laufwerke“ unter System (seit 2.0; vorher „Festplatten-Gesundheit“ und
+    // „Speicherplatz“ von „Speicher je Dienst“) – die ganze Seite, Hostwerk blendet ihren Titel aus, die Knöpfe bleiben.
+    // Bewusst OHNE fallback: true – Hostwerk 3.10/3.11 blenden fallback-Reiter aus, kennen system.leistung aber noch nicht.
+    // Hostwerk 3.12 lässt den Reiter von selbst weg, weil diese Erweiterung den Abschnitt oben liefert.
     'system.tabs': [{ id: 'drives', title: 'Drives', icon: HardDrive, Component: DrivesPage, order: 40 }],
     'dashboard.tiles': [{ id: 'drives', title: 'Drives', icon: HardDrive, size: 'third', Component: DiskHealthTile }],
   },

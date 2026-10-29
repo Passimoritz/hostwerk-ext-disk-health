@@ -2,7 +2,7 @@
 
 # Laufwerke
 
-> **Seit 2.0 „Laufwerke“:** Hier steckt auch die frühere Erweiterung „Speicher je Dienst“. Unter System → Laufwerke zeigt ein Umschalter **Zustand** (S.M.A.R.T., wie bisher) und **Belegung** (wer wie viel Platz belegt, Verlauf und Prognose – der Verlauf wird jetzt stündlich im Server-Teil mitgeschrieben). Wer „Speicher je Dienst“ hatte, bekommt diese Fassung automatisch; Hostwerk übernimmt den Verlauf und entfernt die alte. Mit der Einstellung „Zustand der Laufwerke prüfen“ aus gibt es nur die Belegung, ohne Laufwerks-Abfragen.
+> **Seit 2.0 „Laufwerke“:** Hier steckt auch die frühere Erweiterung „Speicher je Dienst“. Unter System → Leistung → Laufwerke (ältere Hostwerk: System → Laufwerke) zeigt ein Umschalter **Zustand** (S.M.A.R.T., wie bisher) und **Belegung** (wer wie viel Platz belegt, Verlauf und Prognose – der Verlauf wird jetzt stündlich im Server-Teil mitgeschrieben). Wer „Speicher je Dienst“ hatte, bekommt diese Fassung automatisch; Hostwerk übernimmt den Verlauf und entfernt die alte. Mit der Einstellung „Zustand der Laufwerke prüfen“ aus gibt es nur die Belegung, ohne Laufwerks-Abfragen.
 
 Zustand jedes Laufwerks auf einen Blick: Temperatur, Abnutzung, Lese- und Schreibfehler und Betriebsstunden (S.M.A.R.T.). Meldet sich über Hostwerks Benachrichtigungen, wenn Fehler wachsen, es zu warm wird oder ein Laufwerk verschleißt. Mit Kachel für die Übersicht.
 
@@ -12,7 +12,7 @@ Zustand jedes Laufwerks auf einen Blick: Temperatur, Abnutzung, Lese- und Schrei
 
 ## Was sie kann
 
-- **Wo:** System → Laufwerks-Gesundheit und Übersichtskachel – seit 1.2.0 ohne eigenen Seitenleisten-Eintrag; die ganze Seite bleibt unter Erweiterungen → Öffnen
+- **Wo:** System → Leistung → Laufwerke (Hostwerk vor SDK 3.12: System → Laufwerke), Warnungen auch auf System → Lage, und Übersichtskachel – seit 1.2.0 ohne eigenen Seitenleisten-Eintrag; die ganze Seite bleibt unter Erweiterungen → Öffnen
 - **Statusleiste** oben: alle Laufwerke gesund, ansehen oder gefährdet – mit letzter und nächster Prüfung, dem Alter der Admin-Werte und den Knöpfen *Jetzt prüfen* und *Mit Administratorrechten prüfen*
 - **Eine Karte je Laufwerk** im Raster: Modell, Art (NVMe-/SATA-SSD, Festplatte, USB), Größe und Zustand; Kennzahlen im Hostwerk-Stil – Temperatur mit Ampel, Abnutzung mit Balken, geschätzte Restlebensdauer, Betriebszeit (bei Festplatten stattdessen ersetzte Sektoren und Fehler); geschrieben/gelesen, Reserve, Einschaltvorgänge, unsaubere Abschaltungen, jeder Fehlerzähler; Verlauf von Temperatur und Abnutzung
 - **Details** je Laufwerk: jeder S.M.A.R.T.-Wert als Tabelle (aktuell, schlechtester, Grenze, Rohwert) mit Erklärung je Zeile; Werte unter der Herstellergrenze sind markiert

@@ -32,7 +32,7 @@ test('Prognose: voll in X Tagen, sonst kein Wachstum oder zu wenig Verlauf', () 
 test('Klickziele je Dienst', () => {
   assert.strictEqual(D.route({ kind: 'minecraft', id: 'survival' }), '/mc/survival/files');
   assert.strictEqual(D.route({ kind: 'minecraft', id: 'survival' }, 'Sicherungen'), '/mc/survival/backups');
-  assert.strictEqual(D.route({ kind: 'db', id: 'x' }, 'Sicherungen'), '/sicherungen');
+  assert.strictEqual(D.route({ kind: 'db', id: 'x' }, 'Sicherungen'), '/sicherungen/staende');
   assert.strictEqual(D.route({ kind: 'web', id: '../x' }), '/web');
   assert.strictEqual(D.route({ kind: 'game', id: 'v' }), '/spiele/v');
   assert.strictEqual(D.route({ kind: 'game', id: '../x' }), '/ext/game-servers');

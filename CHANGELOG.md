@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.0
+
+- Backups and System rebuilt (Hostwerk with SDK 3.12): the drives are a section in System → Performance (#/system/leistung/drives), next to “Now” and “History”; older Hostwerk versions keep the tab System → Drives. / Sicherungen und System neu (Hostwerk mit SDK 3.12): Die Laufwerke sind ein Abschnitt unter System → Leistung (#/system/leistung/drives), neben „Jetzt“ und „Verlauf“; ältere Hostwerk-Versionen behalten den Reiter System → Laufwerke.
+- System → Overview shows the drive condition from the last reading: every drive with a S.M.A.R.T. warning (also under “Needs you”), otherwise one “all fine” point on the card Performance – no extra drive query. / System → Lage zeigt den Zustand der Laufwerke aus der letzten Abfrage: jedes Laufwerk mit S.M.A.R.T.-Warnung (auch unter „Braucht dich“), sonst ein Punkt „alles in Ordnung“ auf der Karte Leistung – ohne zusätzliche Laufwerks-Abfrage.
+- The backups of a database lead to Backups → Backups (#/sicherungen/staende). / Die Sicherungen einer Datenbank führen zu Sicherungen → Stände (#/sicherungen/staende).
+
 ## 2.0.0
 
 - Now "Drives": the former extension "Storage per service" lives here (SDK 3.8 `replaces`) – one tab System → Drives with the parts "Condition" and "Used space", one tile with fill level and drive health. Hostwerk installs this version for everyone who had "Storage per service" and removes it. / Jetzt „Laufwerke“: Die frühere Erweiterung „Speicher je Dienst“ steckt hier (SDK 3.8 `replaces`) – ein Reiter System → Laufwerke mit den Teilen „Zustand“ und „Belegung“, eine Kachel mit Füllstand und Zustand. Hostwerk installiert diese Fassung für alle mit „Speicher je Dienst“ und entfernt sie.

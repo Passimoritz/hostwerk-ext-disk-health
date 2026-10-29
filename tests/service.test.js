@@ -72,6 +72,27 @@ test('Runde für Runde: speichert, meldet einmal, meldet wieder bei Wachstum', a
   assert.ok(fs.existsSync(path.join(f.data, 'disk-health', 'state.json')));
 });
 
+test('2.1: Punkte für System → Lage aus der letzten Abfrage – Warnung je Laufwerk, sonst „alles in Ordnung“', async () => {
+  const f = fakeHost();
+  const state = { health: 'Healthy', temp: 40, readErrors: 0 };
+  const svc = createService(f.host, windowsIo(state));
+  assert.deepStrictEqual(svc.overviewPoints(), [], 'noch nichts gelesen → kein Punkt');
+  await svc.run();
+  let p = svc.overviewPoints();
+  assert.strictEqual(p.length, 1);
+  assert.strictEqual(p[0].level, 'ok'); assert.strictEqual(p[0].area, 'load'); assert.strictEqual(p[0].href, '#/system/leistung/drives');
+  assert.match(p[0].detail, /Drives without problems: 1/);
+  state.readErrors = 3;
+  await svc.run();
+  p = svc.overviewPoints();
+  assert.strictEqual(p[0].level, 'warn'); assert.match(p[0].title, /Old HDD/); assert.match(p[0].detail, /rose from 0 to 3/);
+  state.temp = 75; state.health = 'Unhealthy';
+  await svc.run();
+  assert.strictEqual(svc.overviewPoints()[0].level, 'err');
+  const off = fakeHost({ smart: false });
+  assert.deepStrictEqual(createService(off.host, windowsIo(state)).overviewPoints(), [], 'Zustand abgeschaltet → kein Punkt');
+});
+
 test('Benachrichtigen abgeschaltet und eigene Grenzen', async () => {
   const f = fakeHost({ notify: false, tempWarn: 45 });
   const svc = createService(f.host, windowsIo({ health: 'Healthy', temp: 50, readErrors: 0 }));
