@@ -67,7 +67,7 @@ const reasonText = (r) => (r.reason === 'error' && r.error ? r.error : t(REASON[
 /* ---------------- Building blocks ---------------- */
 
 /**
- * One key figure in Hostwerk's own stat style (.stat with .k label, .v value, .s line – like System → Resources).
+ * One key figure in Hostwerk's own stat style (.stat with .k label, .v value, .s line – like System → Performance → Now).
  * The ⓘ sits behind the label; a text instead of a number (e.g. "Too early to say") comes as a note in normal size.
  */
 function Stat({ icon: Icon, label, value, note, sub, tone, tip, bar }) {
@@ -438,7 +438,7 @@ function HealthPanel() {
             <Bell size={14} aria-hidden="true" />
             <span>{t('Warns from {temp} °C and {wear} % wear.', { temp: d.limits.tempWarn, wear: d.limits.wearWarn })}</span>
             <a href={SETTINGS_HREF}>Change in the settings</a>
-            <InfoTip pop title="Notifications">Warnings go to Hostwerk’s notifications (push, Discord, ntfy, mail) and appear under Live → Watchers.</InfoTip>
+            <InfoTip pop title="Notifications">Warnings go to Hostwerk’s notifications (push, Discord, ntfy, mail) and appear under Go live → Monitoring → Watchers.</InfoTip>
           </p>
         </>
       )}

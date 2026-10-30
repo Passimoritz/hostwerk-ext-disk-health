@@ -12,7 +12,7 @@
   "No drives found": "Keine Laufwerke gefunden",
   "The system did not list any physical drive.": "Das System hat kein physisches Laufwerk gemeldet.",
   "Notifications": "Benachrichtigungen",
-  "Warnings go to Hostwerk’s notifications (push, Discord, ntfy, mail) and appear under Live → Watchers.": "Warnungen gehen an Hostwerks Benachrichtigungen (Push, Discord, ntfy, Mail) und stehen unter Livebetrieb → Wächter.",
+  "Warnings go to Hostwerk’s notifications (push, Discord, ntfy, mail) and appear under Go live → Monitoring → Watchers.": "Warnungen gehen an Hostwerks Benachrichtigungen (Push, Discord, ntfy, Mail) und stehen unter Livebetrieb → Überwachung → Wächter.",
   "Warns from {temp} °C and {wear} % wear.": "Warnt ab {temp} °C und {wear} % Abnutzung.",
   "Change in the settings": "In den Einstellungen ändern",
   "No drive checked yet": "Noch kein Laufwerk geprüft",

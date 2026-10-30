@@ -8,7 +8,7 @@
  *   POST /api/disk-health/smartctl/install → Windows: smartmontools through winget (separate download, GPL) → { ok, view }
  * Reads the drives every few minutes (setting) without admin rights, joins the last administrator values (button or
  * Windows task), keeps a small history per drive and alerts through Hostwerk's notifications (push, Discord, ntfy, mail –
- * Live → Alerts) when errors grow, a drive runs hot or wears out. Also shows up as a watcher under Live → Watchers.
+ * Go live → Monitoring → Messages) when errors grow, a drive runs hot or wears out. Also shows up as a watcher under Go live → Monitoring → Watchers.
  * Only reading commands – nothing on a drive is ever changed.
  * Data: data/disk-health/state.json · task results: %ProgramData%\HostwerkDiskHealth\smart.json (see admin.js)
  * Traces (Hostwerk 3.0+, SDK 3.3): the Windows task and its folder are reported with host.traces.add – they show up in the
@@ -26,7 +26,7 @@ const KEEP_SAMPLES = 720; // about a month at one sample per hour
 /** Administrator values younger than this count as "now" (temperature is judged, drives only they know are shown). */
 const FRESH_MS = 2 * 3600000;
 const TOOLS_TTL = 10 * 60000;
-/** Section in System → Performance (Hostwerk with SDK 3.12) – where the points on System → Overview lead */
+/** Section in System → Performance (Hostwerk with SDK 3.12) – where the points on System → Status lead */
 const OVERVIEW_HREF = '#/system/leistung/drives';
 
 /**
@@ -310,7 +310,7 @@ function createService(host, io) {
   };
 
   /**
-   * Points for System → Overview (SDK 3.12, host.contribute('system.overview')) from the last reading – no drive query:
+   * Points for System → Status (SDK 3.12, host.contribute('system.overview')) from the last reading – no drive query:
    * every drive with a warning or an error (warn/err also land in "Needs you"), otherwise one "all fine" point on the
    * card "Performance" (area load). Nothing while the condition check is switched off or no drive was read yet.
    */
@@ -353,7 +353,7 @@ function activate(host) {
   host.router.post('/disk-health/admin-check', async (req, res) => { const r = await svc.adminCheck(); res.json({ ...r, view: svc.view() }); });
   host.router.post('/disk-health/schedule', async (req, res) => { const r = await svc.setSchedule(!!(req.body && req.body.on)); res.json({ ...r, view: svc.view() }); });
   host.router.post('/disk-health/smartctl/install', async (req, res) => { const r = await svc.installSmartctl(); res.json({ ...r, view: svc.view() }); });
-  // S.M.A.R.T. warnings on System → Overview (new in SDK 3.12 – older Hostwerk versions do not know the type and throw)
+  // S.M.A.R.T. warnings on System → Status (new in SDK 3.12 – older Hostwerk versions do not know the type and throw)
   try { host.contribute('system.overview', { list: () => svc.overviewPoints() }); } catch { /* older Hostwerk */ }
 
   // First reading shortly after the start (Hostwerk is busy starting services), then in the chosen rhythm

@@ -18,7 +18,7 @@ Zustand jedes Laufwerks auf einen Blick: Temperatur, Abnutzung, Lese- und Schrei
 - **Details** je Laufwerk: jeder S.M.A.R.T.-Wert als Tabelle (aktuell, schlechtester, Grenze, Rohwert) mit Erklärung je Zeile; Werte unter der Herstellergrenze sind markiert
 - Probleme in klaren Worten – „Ersetzte Sektoren: von 2 auf 8 gestiegen.“ statt Attributnummern
 - Warnt, wenn Fehlerzähler **wachsen** (ersetzte, wartende und unlesbare Sektoren, Medienfehler → gefährdet; Lese-/Schreib- und Kabelfehler → ansehen), wenn ein Laufwerk zu warm oder abgenutzt ist, wenn ein Attribut unter die Herstellergrenze fällt und wenn es selbst ein Problem meldet
-- Meldet sich über Hostwerks Benachrichtigungen (Push, Discord, ntfy, Mail – *Livebetrieb → Alarme*), einmal je Problem und erst wieder, wenn es schlimmer wird; steht außerdem unter *Livebetrieb → Wächter*
+- Meldet sich über Hostwerks Benachrichtigungen (Push, Discord, ntfy, Mail – *Livebetrieb → Überwachung → Meldungen*), einmal je Problem und erst wieder, wenn es schlimmer wird; steht außerdem unter *Livebetrieb → Überwachung → Wächter*
 - Kachel für die Übersicht, das schlechteste Laufwerk zuerst; Rechtsklick auf ein Laufwerk kopiert die Seriennummer oder prüft neu
 - Einstellungen unter *Einstellungen → Benachrichtigungen*: Benachrichtigungen an/aus, Grenzen für Temperatur und Abnutzung, wie oft geprüft wird (Standard: alle 30 Minuten)
 
