@@ -2,7 +2,7 @@
 
 # Laufwerke
 
-> **Seit 2.0 „Laufwerke“:** Hier steckt auch die frühere Erweiterung „Speicher je Dienst“. Unter System → Leistung → Laufwerke (ältere Hostwerk: System → Laufwerke) zeigt ein Umschalter **Zustand** (S.M.A.R.T., wie bisher) und **Belegung** (wer wie viel Platz belegt, Verlauf und Prognose – der Verlauf wird jetzt stündlich im Server-Teil mitgeschrieben). Wer „Speicher je Dienst“ hatte, bekommt diese Fassung automatisch; Hostwerk übernimmt den Verlauf und entfernt die alte. Mit der Einstellung „Zustand der Laufwerke prüfen“ aus gibt es nur die Belegung, ohne Laufwerks-Abfragen.
+> **Neu in 2.2: eigener Reiter System → Speicher** mit den Abschnitten **Laufwerke** (Zustand und Belegung) und **Dateien** – jede Datei in Hostwerks Ordnern, nach Dienst sortiert, mit Suche, Filtern, Doppelten und Aufräumen. Seit 2.0 steckt hier auch die frühere Erweiterung „Speicher je Dienst“; wer sie hatte, bekommt diese Fassung automatisch, Hostwerk übernimmt den Verlauf und entfernt die alte. Mit der Einstellung „Zustand der Laufwerke prüfen“ aus gibt es nur Belegung und Dateien, ohne Laufwerks-Abfragen.
 
 Zustand jedes Laufwerks auf einen Blick: Temperatur, Abnutzung, Lese- und Schreibfehler und Betriebsstunden (S.M.A.R.T.). Meldet sich über Hostwerks Benachrichtigungen, wenn Fehler wachsen, es zu warm wird oder ein Laufwerk verschleißt. Mit Kachel für die Übersicht.
 
@@ -12,7 +12,8 @@ Zustand jedes Laufwerks auf einen Blick: Temperatur, Abnutzung, Lese- und Schrei
 
 ## Was sie kann
 
-- **Wo:** System → Leistung → Laufwerke (Hostwerk vor SDK 3.12: System → Laufwerke), Warnungen auch auf System → Lage, und Übersichtskachel – seit 1.2.0 ohne eigenen Seitenleisten-Eintrag; die ganze Seite bleibt unter Erweiterungen → Öffnen
+- **Wo:** System → Speicher → Laufwerke und → Dateien (Hostwerk mit SDK 3.12: System → Leistung, davor System → Laufwerke), Warnungen auch auf System → Lage, und Übersichtskachel – seit 1.2.0 ohne eigenen Seitenleisten-Eintrag; die ganze Seite bleibt unter Erweiterungen → Öffnen
+- **Dateien** (2.2): jede Datei in Hostwerks Ordnern (Webordner, Projekte, Apps, Dienste aus Erweiterungen, eigene Ordner, Sicherungen, Protokolle, Einstellungen) links nach Dienst gruppiert mit Balken und den größten Ordnern, rechts als Tabelle – Suche nach Name und Ordner, Filter nach Art (Bilder, Videos, Archive, Datenbanken & Welten, Protokolle …), „Über 100 MB“, „Seit einem Jahr unverändert“, Sortieren nach Name, Dienst, Größe und Datum; Umbenennen, Herunterladen, In Dateien zeigen, Pfad kopieren und Löschen in Hostwerks Papierkorb (30 Tage wiederherstellbar), auch für viele Dateien auf einmal; **Doppelte** finden (gleicher Inhalt ab 1 MB) und alle Kopien außer der neuesten auswählen. Die Liste wird alle sechs Stunden und auf Knopfdruck neu gelesen (höchstens 300.000 Dateien) und liegt nur im Speicher
 - **Statusleiste** oben: alle Laufwerke gesund, ansehen oder gefährdet – mit letzter und nächster Prüfung, dem Alter der Admin-Werte und den Knöpfen *Jetzt prüfen* und *Mit Administratorrechten prüfen*
 - **Eine Karte je Laufwerk** im Raster: Modell, Art (NVMe-/SATA-SSD, Festplatte, USB), Größe und Zustand; Kennzahlen im Hostwerk-Stil – Temperatur mit Ampel, Abnutzung mit Balken, geschätzte Restlebensdauer, Betriebszeit (bei Festplatten stattdessen ersetzte Sektoren und Fehler); geschrieben/gelesen, Reserve, Einschaltvorgänge, unsaubere Abschaltungen, jeder Fehlerzähler; Verlauf von Temperatur und Abnutzung
 - **Details** je Laufwerk: jeder S.M.A.R.T.-Wert als Tabelle (aktuell, schlechtester, Grenze, Rohwert) mit Erklärung je Zeile; Werte unter der Herstellergrenze sind markiert
@@ -64,9 +65,9 @@ Was ein System nicht verrät, steht als „nicht gemeldet“ da – unbekannt er
 Restlebensdauer ist eine grobe Schätzung aus der bisherigen Abnutzung (oder ihrem Verlauf über mindestens 30 Tage) bei
 gleicher Nutzung.
 
-## Passt gut zu
+## Früher: Speicher je Dienst
 
-[Speicher je Dienst](https://github.com/Passimoritz/hostwerk-ext-disk-usage) – wie voll das Laufwerk ist und wer den Platz belegt; diese Erweiterung zeigt, ob das Laufwerk selbst gesund ist.
+„Speicher je Dienst“ ([disk-usage](https://github.com/Passimoritz/hostwerk-ext-disk-usage), archiviert) ist seit 2.0 Teil dieser Erweiterung – Belegung je Dienst, Verlauf und Prognose stehen unter System → Speicher → Laufwerke → Belegung.
 
 ## Installieren
 

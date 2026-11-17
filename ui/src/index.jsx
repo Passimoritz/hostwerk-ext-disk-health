@@ -1,7 +1,7 @@
 import { useEffect, useId, useState } from 'react';
 import {
   Activity, HardDrive, RefreshCw, Thermometer, Clock, Copy, AlertTriangle, CheckCircle2, HelpCircle, XCircle, ShieldCheck, ChevronDown,
-  Hourglass, Bell, Download, Usb, Wrench, Database,
+  Hourglass, Bell, Download, Usb, Wrench, Database, Files,
 } from 'lucide-react';
 import { post, useApi, fmtBytes, fmtDate, fmtNumber } from '@hostwerk/api';
 import { Btn, Empty, Loading, Callout, InfoTip, TileEmpty, Sparkline, Switch, Seg, toast, confirmDialog } from '@hostwerk/ui';
@@ -9,6 +9,7 @@ import { contextMenu } from '@hostwerk/kit';
 import { t, pl as hostPl } from '@hostwerk/i18n';
 import { describe, COUNTER_LABEL, ATTR_LABEL, ATTR_INFO } from '../../server/texts';
 import { UsagePanel, UsageLine } from './usage';
+import { FilesPanel } from './files';
 import './style.css';
 
 /*
@@ -504,12 +505,25 @@ function DrivesSection() {
   return <div className="ext-embedded"><DrivesPage /></div>;
 }
 
+/** 2.2: alle Dateien nach Dienst – eigener Abschnitt neben „Laufwerke“. */
+function FilesSection() {
+  return <div className="dh-page"><FilesPanel /></div>;
+}
+
+const SECTIONS = [
+  { id: 'drives', title: 'Drives', icon: HardDrive, Component: DrivesSection, order: 40 },
+  { id: 'files', title: 'Files', icon: Files, Component: FilesSection, order: 41 },
+];
+
 export default {
   pages: { main: DrivesPage },
   sections: {
-    // 2.1 (Hostwerk mit SDK 3.12): Abschnitt in System → Leistung (#/system/leistung/drives), neben „Jetzt“ und „Verlauf“;
+    // 2.2 (Hostwerk mit SDK 3.13): eigener Reiter System → Speicher mit „Laufwerke“ (Zustand + Belegung) und „Dateien“
+    // (#/system/speicher/drives, …/files). Dieselben Abschnitte in System → Leistung sind der Rückfall für Hostwerk mit
+    // SDK 3.12 – Hostwerk mit SDK 3.13 zeigt sie nur unter Speicher und leitet #/system/leistung/drives dorthin.
     // S.M.A.R.T.-Warnungen stehen zusätzlich auf System → Lage (server/index.js, system.overview)
-    'system.leistung': [{ id: 'drives', title: 'Drives', icon: HardDrive, Component: DrivesSection, order: 40 }],
+    'system.speicher': SECTIONS,
+    'system.leistung': SECTIONS,
   },
   slots: {
     // Ältere Hostwerk (vor SDK 3.12): EIN Reiter „Laufwerke“ unter System (seit 2.0; vorher „Festplatten-Gesundheit“ und

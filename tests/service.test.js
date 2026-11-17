@@ -80,7 +80,7 @@ test('2.1: Punkte für System → Lage aus der letzten Abfrage – Warnung je La
   await svc.run();
   let p = svc.overviewPoints();
   assert.strictEqual(p.length, 1);
-  assert.strictEqual(p[0].level, 'ok'); assert.strictEqual(p[0].area, 'load'); assert.strictEqual(p[0].href, '#/system/leistung/drives');
+  assert.strictEqual(p[0].level, 'ok'); assert.strictEqual(p[0].area, 'load'); assert.strictEqual(p[0].href, '#/system/speicher/drives');
   assert.match(p[0].detail, /Drives without problems: 1/);
   state.readErrors = 3;
   await svc.run();

@@ -2,7 +2,7 @@
 
 # Drives
 
-> **Since 2.0 “Drives”:** this also contains the former extension “Storage per service”. Under System → Performance → Drives (older Hostwerk: System → Drives) a switch shows **Condition** (S.M.A.R.T., as before) and **Used space** (who takes how much space, history and forecast – the history is now written by the server part once an hour). Anyone who had “Storage per service” gets this version automatically; Hostwerk takes the history over and removes the old one. With the setting “Check the drive condition” off there is only the used space, without drive queries.
+> **New in 2.2: an own tab System → Storage** with the sections **Drives** (condition and used space) and **Files** – every file in Hostwerk’s folders, sorted by service, with search, filters, duplicates and clean-up. Since 2.0 this also contains the former extension “Storage per service”; whoever had it gets this version automatically, Hostwerk takes the history over and removes the old one. With the setting “Check the drive condition” off there are only used space and files, without drive queries.
 
 The state of every drive at a glance: temperature, wear, read and write errors and power-on hours (S.M.A.R.T.). Alerts you through Hostwerk's notifications when errors grow, a drive runs hot or wears out. With a dashboard tile.
 
@@ -12,7 +12,8 @@ The state of every drive at a glance: temperature, wear, read and write errors a
 
 ## What it does
 
-- **Where:** System → Performance → Drives (Hostwerk before SDK 3.12: System → Drives), warnings also on System → Status, and the dashboard tile – no own sidebar entry since 1.2.0; the full page stays under Extensions → Open
+- **Where:** System → Storage → Drives and → Files (Hostwerk with SDK 3.12: System → Performance, before that System → Drives), warnings also on System → Status, and the dashboard tile – no own sidebar entry since 1.2.0; the full page stays under Extensions → Open
+- **Files** (2.2): every file in Hostwerk’s folders (web folders, projects, apps, services from extensions, own folders, backups, logs, settings) grouped by service on the left with bars and the biggest folders, as a table on the right – search by name and folder, filter by kind (images, videos, archives, databases & worlds, logs …), “Over 100 MB”, “Untouched for a year”, sort by name, service, size and date; rename, download, show in Files, copy path and move to Hostwerk’s bin (restorable for 30 days), also for many files at once; find **duplicates** (same content from 1 MB) and select every copy except the newest. The list is read every six hours and on demand (at most 300,000 files) and only kept in memory
 - **Status bar** on top: all drives healthy, needs attention or in danger – with the last and next check, the age of the administrator values and the buttons *Check now* and *Check with admin rights*
 - **One card per drive** in a grid: model, kind (NVMe/SATA SSD, hard disk, USB), size and state; key figures in Hostwerk's stat style – temperature with traffic light, wear with bar, estimated life left, power-on time (hard disks: reallocated sectors and errors instead); data written/read, spare, power cycles, unsafe shutdowns, every error counter; temperature and wear trend
 - **Details** per drive: every S.M.A.R.T. value as a table (current, worst, limit, raw value) with an explanation per row; values below the manufacturer's limit are marked
@@ -62,9 +63,9 @@ Only **reading** commands – nothing on a drive is ever changed.
 Values a system does not reveal are marked “not reported” – unknown is never shown as “no errors”. Life left is a rough
 estimate from the wear so far (or its trend over at least 30 days) at the same use.
 
-## Works well with
+## Formerly: Storage per service
 
-[Storage per service](https://github.com/Passimoritz/hostwerk-ext-disk-usage) – how full the drive is and who uses the space; this extension shows whether the drive itself is healthy.
+“Storage per service” ([disk-usage](https://github.com/Passimoritz/hostwerk-ext-disk-usage), archived) is part of this extension since 2.0 – used space per service, history and forecast are under System → Storage → Drives → Used space.
 
 ## Install
 

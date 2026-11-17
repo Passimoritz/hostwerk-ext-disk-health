@@ -129,3 +129,100 @@
 .dh-du-kinds { flex-wrap: wrap; }
 .dh-du-kinds button { min-height: var(--sp-6); }
 .dh-du-skel { height: calc(var(--sp-8) * 5); }
+
+/* ---------- 2.2: Teil „Dateien“ (System → Speicher → Dateien) ---------- */
+.dh-fl { display: flex; flex-direction: column; gap: var(--sp-4); min-width: 0; container-type: inline-size; }
+.dh-fl-head { display: flex; flex-direction: column; gap: var(--sp-3); }
+.dh-fl-total { font-size: var(--fs-lg, 1.15rem); font-variant-numeric: tabular-nums; }
+/* Farben je Art – aus Hostwerks Tönen gemischt, damit Hell und Dunkel passen */
+.dh-ft-image { --dh-ft: var(--accent); }
+.dh-ft-video { --dh-ft: var(--accent-2); }
+.dh-ft-audio { --dh-ft: var(--info); }
+.dh-ft-log { --dh-ft: color-mix(in srgb, var(--muted) 70%, var(--surface-3)); }
+.dh-ft-archive { --dh-ft: var(--warn); }
+.dh-ft-database { --dh-ft: var(--ok); }
+.dh-ft-document { --dh-ft: color-mix(in srgb, var(--info) 55%, var(--ok)); }
+.dh-ft-code { --dh-ft: color-mix(in srgb, var(--accent) 50%, var(--info)); }
+.dh-ft-program { --dh-ft: var(--err); }
+.dh-ft-other { --dh-ft: var(--line-2); }
+.dh-fl-stack { display: flex; height: var(--sp-3); border-radius: var(--r-xs); overflow: hidden; background: var(--surface-2); gap: 1px; }
+.dh-fl-stack span { display: block; height: 100%; background: var(--dh-ft); }
+.dh-fl-legend { display: flex; flex-wrap: wrap; gap: var(--sp-1) var(--sp-2); margin-top: var(--sp-2); }
+.dh-fl-leg { display: inline-flex; align-items: center; gap: var(--sp-1); border: 1px solid transparent; background: none; color: var(--text-2); font: inherit; font-size: var(--fs-sm); padding: 2px var(--sp-2); border-radius: var(--r-sm); cursor: pointer; min-height: 28px; }
+.dh-fl-leg:hover { background: var(--surface-2); }
+.dh-fl-leg.on { border-color: var(--accent); background: var(--accent-soft); color: var(--text); }
+.dh-fl-leg:focus-visible { outline: 2px solid var(--accent-ring, var(--accent)); outline-offset: 1px; }
+.dh-fl-leg i { width: 10px; height: 10px; border-radius: var(--r-xs); background: var(--dh-ft); flex: none; }
+
+.dh-fl-grid { display: grid; grid-template-columns: minmax(220px, 280px) minmax(0, 1fr); gap: var(--sp-4); align-items: start; }
+.dh-fl-main { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
+
+/* Linke Spalte: Bereiche nach Dienst */
+.dh-fl-roots { padding: var(--sp-2); display: flex; flex-direction: column; gap: 2px; position: sticky; top: var(--sp-3); max-height: calc(100vh - 120px); overflow: auto; }
+.dh-fl-rgroup { margin-top: var(--sp-2); }
+.dh-fl-rhead { padding: var(--sp-1) var(--sp-2); text-transform: uppercase; letter-spacing: .04em; }
+.dh-fl-root { display: flex; align-items: flex-start; gap: var(--sp-2); width: 100%; text-align: left; border: 0; background: none; color: inherit; font: inherit; font-size: var(--fs-sm); padding: var(--sp-2); border-radius: var(--r-sm); cursor: pointer; }
+.dh-fl-root > svg { margin-top: 2px; flex: none; color: var(--muted); }
+.dh-fl-root:hover { background: var(--surface-2); }
+.dh-fl-root.on { background: var(--accent-soft); }
+.dh-fl-root.on > svg { color: var(--accent-text); }
+.dh-fl-root:focus-visible, .dh-fl-folder:focus-visible, .dh-fl-sort:focus-visible { outline: 2px solid var(--accent-ring, var(--accent)); outline-offset: 1px; }
+.dh-fl-rmain { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.dh-fl-rmain .small { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dh-fl-rbar { display: block; height: 4px; border-radius: var(--r-xs); background: var(--surface-2); overflow: hidden; }
+.dh-fl-rbar span { display: block; height: 100%; background: var(--accent); border-radius: var(--r-xs); }
+.dh-fl-folders { display: flex; flex-direction: column; margin: 2px 0 var(--sp-2) calc(var(--sp-4) + 4px); border-left: 1px solid var(--line); padding-left: var(--sp-1); }
+.dh-fl-folder { display: flex; align-items: center; gap: var(--sp-1); border: 0; background: none; color: var(--text-2); font: inherit; font-size: var(--fs-sm); padding: 4px var(--sp-2); border-radius: var(--r-sm); cursor: pointer; text-align: left; min-height: 28px; }
+.dh-fl-folder:hover { background: var(--surface-2); }
+.dh-fl-folder.on { background: var(--accent-soft); color: var(--text); }
+.dh-fl-folder .tiny { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Werkzeugleiste */
+.dh-fl-tools { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; }
+.dh-fl-search { position: relative; flex: 1 1 220px; min-width: 0; display: flex; align-items: center; }
+.dh-fl-search svg { position: absolute; left: var(--sp-2); color: var(--muted); pointer-events: none; }
+.dh-fl-search .input { width: 100%; padding-left: calc(var(--sp-2) + 22px); }
+.dh-fl-type { flex: 0 0 auto; width: auto; }
+.dh-fl-chips { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
+.dh-fl-chips .chip { display: inline-flex; align-items: center; gap: var(--sp-1); border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font: inherit; font-size: var(--fs-sm); padding: 2px var(--sp-2); border-radius: var(--r-xl); cursor: pointer; min-height: 26px; }
+.dh-fl-chips .chip:hover { border-color: var(--accent); }
+.dh-fl-bulk { position: sticky; top: var(--sp-2); z-index: 2; }
+
+/* Tabelle */
+.dh-fl-table { table-layout: fixed; width: 100%; }
+.dh-fl-table td, .dh-fl-table th { vertical-align: middle; }
+.dh-fl-check { width: 36px; }
+.dh-fl-name { min-width: 0; }
+.dh-fl-name > span { display: flex; min-width: 0; }
+.dh-fl-name .ellipsis { display: block; min-width: 0; }
+.dh-fl-app { width: 22%; }
+.dh-fl-table .num { width: 92px; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dh-fl-date { width: 150px; white-space: nowrap; }
+.dh-fl-acts { width: 136px; text-align: right; white-space: nowrap; }
+.dh-fl-acts .btn { opacity: .55; }
+.dh-fl-table tr:hover .dh-fl-acts .btn, .dh-fl-acts .btn:focus-visible { opacity: 1; }
+.dh-fl-picked { background: var(--accent-soft); }
+.dh-fl-sort { display: inline-flex; align-items: center; gap: 4px; border: 0; background: none; color: inherit; font: inherit; font-weight: inherit; padding: 0; cursor: pointer; }
+.dh-fl-table th.num .dh-fl-sort { justify-content: flex-end; width: 100%; }
+.dh-fi-image { color: var(--accent); } .dh-fi-video { color: var(--accent-2); } .dh-fi-audio { color: var(--info); }
+.dh-fi-archive { color: var(--warn-text, var(--warn)); } .dh-fi-database { color: var(--ok-text, var(--ok)); } .dh-fi-program { color: var(--err-text, var(--err)); }
+.dh-fl-name svg { flex: none; margin-right: 2px; }
+.dh-fl-more { display: flex; justify-content: center; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Doppelte */
+.dh-fl-dups { display: flex; flex-direction: column; gap: var(--sp-3); }
+.dh-fl-dupbar { align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
+.dh-fl-dupgroup .card-head { gap: var(--sp-2); }
+
+/* Nach der Breite des Abschnitts (nicht des Fensters): unter System stehen Seitenleiste und Abschnittsliste daneben */
+@container (max-width: 900px) {
+  .dh-fl-grid { grid-template-columns: minmax(0, 1fr); }
+  .dh-fl-roots { position: static; max-height: 300px; }
+}
+@container (max-width: 640px) {
+  .dh-fl-app, .dh-fl-date { display: none; }
+  .dh-fl-acts { width: 72px; }
+  .dh-fl-acts .btn:nth-child(2), .dh-fl-acts .btn:nth-child(3) { display: none; }
+  .dh-fl-acts .btn { opacity: 1; }
+}

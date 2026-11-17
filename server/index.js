@@ -26,8 +26,8 @@ const KEEP_SAMPLES = 720; // about a month at one sample per hour
 /** Administrator values younger than this count as "now" (temperature is judged, drives only they know are shown). */
 const FRESH_MS = 2 * 3600000;
 const TOOLS_TTL = 10 * 60000;
-/** Section in System → Performance (Hostwerk with SDK 3.12) – where the points on System → Status lead */
-const OVERVIEW_HREF = '#/system/leistung/drives';
+/** Section in System → Storage (Hostwerk with SDK 3.13; with SDK 3.12 the System page finds it under Performance) – where the points on System → Status lead */
+const OVERVIEW_HREF = '#/system/speicher/drives';
 
 /**
  * The service itself – io = { exec, readdir, readFile, platform?, env?, exists?, elevate?(steps, opts), pkgHint?(pkg) }
@@ -369,6 +369,8 @@ function activate(host) {
   host.on('shutdown', () => clearTimeout(timer));
   // 2.0: Teil „Belegung“ (früher Erweiterung „Speicher je Dienst“) – Verlauf des Füllstands im Server-Teil
   require('./usage').mount(host);
+  // 2.2: Teil „Dateien“ – alle Dateien in Hostwerks Bereichen, nach Dienst (server/files.js)
+  try { require('./files').mount(host); } catch (e) { if (host.log) host.log('files:', e.message); }
 }
 
 function deactivate() { active = null; }

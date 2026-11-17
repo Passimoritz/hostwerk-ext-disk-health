@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.0
+
+- Own tab System → Storage (Hostwerk with SDK 3.13) with the sections “Drives” and “Files” (#/system/speicher/drives, #/system/speicher/files); with SDK 3.12 both stay under System → Performance. / Eigener Reiter System → Speicher (Hostwerk mit SDK 3.13) mit den Abschnitten „Laufwerke“ und „Dateien“; mit SDK 3.12 bleiben beide unter System → Leistung.
+- New section “Files”: every file in Hostwerk’s folders sorted by service, with search, filters by kind, size and age, sorting, rename, download, show in Files, copy path, move to the bin (also many at once) and a search for duplicate files. / Neuer Abschnitt „Dateien“: jede Datei in Hostwerks Ordnern nach Dienst sortiert, mit Suche, Filtern nach Art, Größe und Alter, Sortieren, Umbenennen, Herunterladen, In Dateien zeigen, Pfad kopieren, Papierkorb (auch viele auf einmal) und Suche nach doppelten Dateien.
+- The points on System → Overview lead to System → Storage → Drives. / Die Punkte auf System → Lage führen zu System → Speicher → Laufwerke.
+
 ## 2.1.0
 
 - Backups and System rebuilt (Hostwerk with SDK 3.12): the drives are a section in System → Performance (#/system/leistung/drives), next to “Now” and “History”; older Hostwerk versions keep the tab System → Drives. / Sicherungen und System neu (Hostwerk mit SDK 3.12): Die Laufwerke sind ein Abschnitt unter System → Leistung (#/system/leistung/drives), neben „Jetzt“ und „Verlauf“; ältere Hostwerk-Versionen behalten den Reiter System → Laufwerke.
