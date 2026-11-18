@@ -22,7 +22,7 @@ function uiTexts() {
   for (const m of src.matchAll(/\b(?:title|text|tipTitle)="([^"]+)"/g)) add(m[1]);
   for (const m of src.matchAll(/>([^<>{}]*[A-Za-z][^<>{}]*)</g)) if (!/[=;()]|=>/.test(m[1])) add(m[1]);
   // LEVEL/MEDIA/REASON: label: '…' and 'key': '…' inside the maps
-  for (const name of ['LEVEL', 'MEDIA', 'REASON', 'KIND', 'PART', 'TYPE', 'GROUP']) {
+  for (const name of ['LEVEL', 'MEDIA', 'REASON', 'KIND', 'PART', 'TYPE', 'GROUP', 'LABEL']) {
     const block = src.slice(src.indexOf(`const ${name} = {`), src.indexOf('};', src.indexOf(`const ${name} = {`)));
     for (const m of block.matchAll(/(?:label: |: )'((?:[^'\\]|\\.)*)'/g)) add(m[1]);
   }
