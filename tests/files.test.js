@@ -8,6 +8,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { createFiles, typeOf, classify, pkgName, topK } = require('../server/files');
+// Das nachgebaute Laufwerk hat Windows' Ordneraufbau (Program Files, AppData …) – unter Linux/macOS gilt eine andere Zuordnung
+const WIN_ONLY = { skip: process.platform !== 'win32' && 'Windows-Ordneraufbau' };
 
 function writer(base) {
   return (rel, content, mtime) => {
@@ -170,7 +172,7 @@ test('Liste: Filter nach Gruppe, Ordner, Art, Suche, Größe, Alter – sortiert
   assert.strictEqual(csv.trim().split('\r\n').length, 3);
 });
 
-test('Ganze Maschine: Gruppen nach Anwendung, Hostwerk-Bereiche darin, Ordnerbaum, Laufwerk', async () => {
+test('Ganze Maschine: Gruppen nach Anwendung, Hostwerk-Bereiche darin, Ordnerbaum, Laufwerk', WIN_ONLY, async () => {
   const { files, P, base } = machine();
   await files.scan();
   const s = files.summary();
@@ -204,7 +206,7 @@ test('Ganze Maschine: Gruppen nach Anwendung, Hostwerk-Bereiche darin, Ordnerbau
   assert.strictEqual(files.list({ q: 'movie.mp4' }).items[0].lock, undefined);
 });
 
-test('Ganze Maschine: Löschen – Hostwerks Bereiche in Hostwerks Papierkorb, sonst Windows-Papierkorb, Geschütztes nie', async () => {
+test('Ganze Maschine: Löschen – Hostwerks Bereiche in Hostwerks Papierkorb, sonst Windows-Papierkorb, Geschütztes nie', WIN_ONLY, async () => {
   const { files, P, trashed, recycled } = machine();
   await files.scan();
   const before = files.summary().totals.bytes;
