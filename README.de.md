@@ -2,7 +2,9 @@
 
 # Laufwerke
 
-> **Neu in 2.3: „Dateien“ zeigt den ganzen Rechner** – jede Datei auf den Laufwerken, sortiert nach Programm, Dienst und Ordner, mit der Belegung links in der Leiste, Ordnerbaum, Doppelten und Aufräumen (Hostwerks Ordner in Hostwerks Papierkorb, der Rest in den Windows-Papierkorb; Windows und installierte Programme sind geschützt). Seit 2.2 eigener Reiter System → Speicher mit **Laufwerke** und **Dateien**. Seit 2.0 steckt hier auch die frühere Erweiterung „Speicher je Dienst“; wer sie hatte, bekommt diese Fassung automatisch, Hostwerk übernimmt den Verlauf und entfernt die alte. Mit der Einstellung „Zustand der Laufwerke prüfen“ aus gibt es nur Belegung und Dateien, ohne Laufwerks-Abfragen.
+> **Neu in 2.4: System → Speicher mit Zustand, Belegung, Dateien und Papierkorb** – Dateien mit Übersicht (wofür der Platz draufgeht, was sich freigeben lässt), Wichtigkeit je Datei (braucht Windows, Programm, App-Daten, kann weg, eigene Datei), erkannten Spielen und installierten Programmen; dazu der Windows-Papierkorb zum Zurücklegen und Leeren.
+>
+> **2.3: „Dateien“ zeigt den ganzen Rechner** – jede Datei auf den Laufwerken, sortiert nach Programm, Dienst und Ordner, mit der Belegung links in der Leiste, Ordnerbaum, Doppelten und Aufräumen (Hostwerks Ordner in Hostwerks Papierkorb, der Rest in den Windows-Papierkorb; Windows und installierte Programme sind geschützt). Seit 2.2 eigener Reiter System → Speicher mit **Laufwerke** und **Dateien**. Seit 2.0 steckt hier auch die frühere Erweiterung „Speicher je Dienst“; wer sie hatte, bekommt diese Fassung automatisch, Hostwerk übernimmt den Verlauf und entfernt die alte. Mit der Einstellung „Zustand der Laufwerke prüfen“ aus gibt es nur Belegung und Dateien, ohne Laufwerks-Abfragen.
 
 Zustand jedes Laufwerks auf einen Blick: Temperatur, Abnutzung, Lese- und Schreibfehler und Betriebsstunden (S.M.A.R.T.). Meldet sich über Hostwerks Benachrichtigungen, wenn Fehler wachsen, es zu warm wird oder ein Laufwerk verschleißt. Mit Kachel für die Übersicht.
 

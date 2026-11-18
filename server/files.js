@@ -135,9 +135,9 @@ function classify(segs, drive, win) {
     }
     if (PERSONAL[s2]) return { key: `personal:${low[1]}:${s2}`, label: PERSONAL[s2], i18n: true, sub: segs[1], kind: 'personal', cat: 'personal', final: true };
     if (s2.startsWith('onedrive')) return { key: `personal:${low[1]}:onedrive`, label: 'OneDrive', sub: segs[1], kind: 'personal', cat: 'personal', final: true };
-    // .cache, .local, .config sind Sammelordner – darin je Unterordner eine Anwendung
-    if (s2 === '.cache' || s2 === '.local' || s2 === '.config') return n === 3 ? { key: `apps:${s2}`, label: segs[2], kind: 'program', cat: 'apps', final: false } : app(segs[3], 'data');
-    if (s2.startsWith('.')) return app(segs[2], 'data');
+    // .cache, .local, .config sind Sammelordner – darin je Unterordner ein Werkzeug; .cache ist Zwischenspeicher
+    if (s2 === '.cache' || s2 === '.local' || s2 === '.config') return n === 3 ? { key: `apps:${s2}`, label: segs[2], kind: 'tool', cat: 'apps', final: false, role: s2 === '.cache' ? 'cache' : undefined } : { ...app(segs[3], 'data'), kind: 'tool', role: s2 === '.cache' ? 'cache' : undefined };
+    if (s2.startsWith('.')) return { ...app(segs[2], 'data'), kind: 'tool' };
     return { key: `personal:${low[1]}:${s2}`, label: segs[2], sub: segs[1], kind: 'personal', cat: 'personal', final: true };
   }
   return { key: `top:${keyName(D)}:${s0}`, label: `${D}\\${segs[0]}`, kind: 'folder', cat: 'other', final: true };
@@ -166,10 +166,97 @@ function topK(idx, k, cmp) {
   return h.sort(cmp);
 }
 
+/* ---------------- 2.4: Wichtigkeit, Spiele, installierte Programme ---------------- */
+
+/**
+ * Wie wichtig eine Datei ist – „mandatory“ oder kann weg:
+ *   system   Windows braucht sie (geschützt)
+ *   program  Teil eines installierten Programms oder Spiels – über Deinstallieren entfernen
+ *   data     Daten einer Anwendung (Einstellungen, Spielstände, Profile) – die Anwendung braucht sie
+ *   cache    Zwischenspeicher, temporäre Dateien, Absturzberichte – können weg, werden bei Bedarf neu angelegt
+ *   user     deine eigenen Dateien – du entscheidest
+ *   hostwerk Hostwerks Bereiche (Webordner, Projekte, Sicherungen …) – in Hostwerk verwalten
+ *   trash    im Windows-Papierkorb – schon gelöscht, belegt aber noch Platz
+ */
+const ROLE_IDS = ['system', 'program', 'data', 'cache', 'user', 'hostwerk', 'trash'];
+const ROLE_NUM = Object.fromEntries(ROLE_IDS.map((id, i) => [id, i]));
+/** Ordner, deren Inhalt Zwischenspeicher ist (ohne Folgen löschbar). */
+const CACHE_DIR = /^(cache|caches|cache2|cache_data|code cache|gpucache|grshadercache|shadercache|dawncache|dxcache|glcache|nv_cache|d3dscache|crashpad|crashdumps|crash reports|crashreports|minidumps?|temp|tmp|\.cache|npm-cache|_cacache|pip|service worker|cachestorage|inetcache|thumbcache|logs?|squirreltemp|update cache|packages-cache|download cache)$/i;
+const JUNK_FILE = /\.(tmp|temp|dmp|mdmp|crdownload|part|partial|old|bak~)$|^~\$|^thumbs\.db$|^\.ds_store$/i;
+/** Spiele-Bibliotheken: der Ordner hinter dem Muster ist ein Spiel. */
+const LAUNCHER = {
+  'epic games': ['launcher', 'directxredist', 'epic online services'],
+  'riot games': ['riot client'],
+  'ea games': [],
+  xboxgames: ['gamesave'],
+  'gog games': [],
+};
+
+/** Spiel an genau dieser Tiefe? → { name, appId?, role } (segs = Pfadstücke unterhalb des Laufwerks). */
+function gameOf(segs, steam) {
+  const n = segs.length;
+  if (n < 2) return null;
+  const low = segs.map((s) => s.toLowerCase());
+  const i = low.lastIndexOf('steamapps');
+  if (i >= 0) {
+    if (low[i + 1] === 'common' && n === i + 3) {
+      const m = steam.byDir.get(low[i + 2]);
+      return { name: (m && m.name) || segs[i + 2], appId: m && m.appId, role: 'program', via: 'Steam' };
+    }
+    if (low[i + 1] === 'workshop' && low[i + 2] === 'content' && n === i + 4) {
+      const m = steam.byId.get(low[i + 3]);
+      return m ? { name: m.name, appId: m.appId, role: 'data', via: 'Steam' } : null;
+    }
+    if (low[i + 1] === 'shadercache' && n === i + 3) {
+      const m = steam.byId.get(low[i + 2]);
+      return m ? { name: m.name, appId: m.appId, role: 'cache', via: 'Steam' } : null;
+    }
+    return null;
+  }
+  for (let j = 0; j < n - 1; j++) {
+    const skip = LAUNCHER[low[j]];
+    if (skip && n === j + 2 && !skip.includes(low[j + 1])) return { name: segs[j + 1], role: 'program', via: segs[j] };
+    if (low[j] === 'gog galaxy' && low[j + 1] === 'games' && n === j + 3) return { name: segs[j + 2], role: 'program', via: 'GOG' };
+    if (low[j] === 'ubisoft game launcher' && low[j + 1] === 'games' && n === j + 3) return { name: segs[j + 2], role: 'program', via: 'Ubisoft Connect' };
+  }
+  return null;
+}
+
+/** appmanifest_*.acf eines steamapps-Ordners: Name je Spielordner und je App-ID. */
+async function readSteam(dir, steam) {
+  let names;
+  try { names = await fs.promises.readdir(dir); } catch { return; }
+  for (const f of names) {
+    if (!/^appmanifest_\d+\.acf$/i.test(f)) continue;
+    try {
+      const s = await fs.promises.readFile(path.join(dir, f), 'utf8');
+      const appId = (/"appid"\s+"(\d+)"/i.exec(s) || [])[1];
+      const name = (/"name"\s+"([^"]+)"/i.exec(s) || [])[1];
+      const inst = (/"installdir"\s+"([^"]+)"/i.exec(s) || [])[1];
+      if (!appId || !name) continue;
+      const m = { appId, name };
+      steam.byId.set(appId, m);
+      if (inst) steam.byDir.set(inst.toLowerCase(), m);
+    } catch { /* unlesbar */ }
+  }
+}
+
+/** Rolle aus der Zuordnung eines Ordners. */
+function roleOf(c) {
+  if (c.role) return c.role;
+  if (c.lock === 'system' && c.kind === 'recycle') return 'trash';
+  if (c.lock === 'system') return 'system';
+  if (c.lock === 'program') return 'program';
+  if (c.kind === 'temp') return 'cache';
+  if (c.cat === 'apps') return 'data';
+  return 'user';
+}
+
 /**
  * io = { roots(): [{ id, label, kind, path, docker? }] (Hostwerks Bereiche), drives?(): Promise<[Pfad]> (leer = nur
- *        Hostwerks Bereiche), hostwerkBase?, toTrash(root, rel), resolve(root, rel) → { full }, recycle?(fulls) →
- *        Promise<[{ path, error? }]>, trashAbs?(full, opts), skip?: [nie zählen], platform?, now?(), max? }
+ *        Hostwerks Bereiche), installed?(): Promise<[{ name, publisher, version, location }]> (Windows: Registry),
+ *        hostwerkBase?, toTrash(root, rel), resolve(root, rel) → { full }, recycle?(fulls) → Promise<[{ path, error? }]>,
+ *        trashAbs?(full, opts), skip?: [nie zählen], cacheFile? (Index auf Platte), platform?, now?(), max?, workers? }
  */
 function createFiles(io) {
   const win = (io.platform || process.platform) === 'win32';
@@ -181,10 +268,14 @@ function createFiles(io) {
   const now = io.now || Date.now;
   const MAX = io.max || MAX_FILES;
   const HARD = io.hardMax || (io.max ? io.max : HARD_MAX);
+  const WORKERS = io.workers || 8;
   let index = null;
+  let version = 0; // zählt bei jeder Änderung – die Übersicht wird nur dann neu gerechnet
+  let sumCache = null;
   let scanning = null;
   let progress = { files: 0, dirs: 0, dir: null };
   let dups = { at: null, running: false, groups: [], waste: 0, error: null, checked: 0 };
+  const touch = () => { version++; sumCache = null; };
 
   /** Hostwerks Bereiche: vorhanden, ohne Docker, ohne doppelte Pfade. */
   const rootsNow = () => {
@@ -196,6 +287,20 @@ function createFiles(io) {
     });
   };
 
+  /** Spalten aus den gespeicherten Grunddaten ergänzen (Kinder-Listen, Summen, Nachschlagen). */
+  function finish(ix) {
+    const nD = ix.dirs.length;
+    ix.dFirst = new Array(nD).fill(-1); ix.dNext = new Array(nD).fill(-1);
+    for (let i = nD - 1; i >= 0; i--) { const p = ix.dParent[i]; if (p >= 0) { ix.dNext[i] = ix.dFirst[p]; ix.dFirst[p] = i; } }
+    ix.dB = ix.dOwnB.slice(); ix.dN = ix.dOwnN.slice();
+    for (let i = nD - 1; i > 0; i--) { const p = ix.dParent[i]; if (p >= 0) { ix.dB[p] += ix.dB[i]; ix.dN[p] += ix.dN[i]; } }
+    ix.dirMap = new Map();
+    for (let i = 0; i < nD; i++) ix.dirMap.set(norm(ix.dirs[i]), i);
+    for (const dv of ix.drives) { const i = ix.dirMap.get(norm(dv.path)); dv.counted = i !== undefined ? ix.dB[i] : 0; dv.files = i !== undefined ? ix.dN[i] : 0; }
+    ix.lower = null; ix.lowerNames = null;
+    return ix;
+  }
+
   function scan() {
     if (scanning) return scanning;
     scanning = (async () => {
@@ -205,6 +310,19 @@ function createFiles(io) {
       try { drives = io.drives ? (await io.drives()) || [] : []; } catch { drives = []; }
       drives = [...new Set(drives.filter((d) => d && fs.existsSync(d)).map((d) => P.resolve(d)))];
       const mode = drives.length ? 'machine' : 'hostwerk';
+      // Installierte Programme (Windows: Registry) – Ordner → Name, Herausgeber, Version
+      let installed = [];
+      if (mode === 'machine' && io.installed) { try { installed = (await io.installed()) || []; } catch { installed = []; } }
+      const instByDir = new Map();
+      for (const p of installed) {
+        if (!p || !p.name || !p.location) continue;
+        let loc = P.resolve(String(p.location).replace(/^"|"$/g, ''));
+        if (/^(bin|bin64|bin32|x64|x86|app|program)$/i.test(P.basename(loc))) loc = P.dirname(loc); // „…\Android Studio\bin“ → der Programmordner
+        if (P.parse(loc).root === loc || loc.split(/[\\/]/).filter(Boolean).length < 3) continue; // zu allgemein (C:\, C:\Program Files)
+        if (!instByDir.has(norm(loc))) instByDir.set(norm(loc), p);
+      }
+      const instKeys = new Set();
+      for (const p of installed) if (p && p.name) { instKeys.add(keyName(p.name)); if (p.location) instKeys.add(keyName(P.basename(String(p.location)))); }
       // Ziele: die Laufwerke – und Hostwerks Bereiche, die auf keinem davon liegen (ohne Laufwerke: nur die Bereiche)
       const targets = drives.map((d) => ({ path: d, drive: d, machine: true }));
       for (const r of roots) {
@@ -218,24 +336,30 @@ function createFiles(io) {
         let i = gByKey.get(c.key);
         if (i === undefined) {
           i = groups.length; gByKey.set(c.key, i);
-          groups.push({ id: c.key, label: c.label, i18n: !!c.i18n, sub: c.sub || null, kind: c.kind, cat: c.cat, lock: c.lock || null, root: c.root || null, rootPath: c.rootPath || null, bases: [], final: !!c.final });
+          groups.push({ id: c.key, label: c.label, i18n: !!c.i18n, sub: c.sub || null, kind: c.kind, cat: c.cat, lock: c.lock || null, root: c.root || null, rootPath: c.rootPath || null, bases: [], final: !!c.final, publisher: c.publisher || null, version: c.version || null, installed: !!c.installed, appId: c.appId || null, via: c.via || null });
+        } else {
+          const G = groups[i];
+          if (c.installed) G.installed = true;
+          if (c.publisher && !G.publisher) G.publisher = c.publisher;
+          if (c.version && !G.version) G.version = c.version;
+          if (c.appId && !G.appId) G.appId = c.appId;
+          if (c.installed && c.label && G.cat === 'apps') G.label = c.label; // Name aus Windows ist der schönere
         }
         return i;
       };
       const rootGroup = new Map();
-      for (const r of roots) rootGroup.set(norm(r.path), { key: `hw:${r.id}`, label: r.label, kind: r.kind || 'other', cat: 'hostwerk', final: true, root: r.id, rootPath: P.resolve(r.path) });
+      for (const r of roots) rootGroup.set(norm(r.path), { key: `hw:${r.id}`, label: r.label, kind: r.kind || 'other', cat: 'hostwerk', final: true, root: r.id, rootPath: P.resolve(r.path), role: 'hostwerk' });
       const hwBase = io.hostwerkBase ? norm(io.hostwerkBase) : null;
+      const steam = { byDir: new Map(), byId: new Map() };
 
       // Spalten
-      const dirs = []; const dParent = []; const dGroup = []; const dLock = []; const dFirst = []; const dNext = []; const dOwnB = []; const dOwnN = [];
+      const dirs = []; const dParent = []; const dGroup = []; const dLock = []; const dRole = []; const dOwnB = []; const dOwnN = [];
       const fDir = []; const fName = []; const fSize = []; const fM = []; const fT = [];
       const dirMap = new Map();
       let truncated = false;
-      const addDir = (full, parent, [g, lock]) => {
+      const addDir = (full, parent, [g, lock, role]) => {
         const i = dirs.length;
-        dirs.push(full); dParent.push(parent); dGroup.push(g); dLock.push(lock); dFirst.push(-1); dOwnB.push(0); dOwnN.push(0);
-        dNext.push(parent >= 0 ? dFirst[parent] : -1);
-        if (parent >= 0) dFirst[parent] = i;
+        dirs.push(full); dParent.push(parent); dGroup.push(g); dLock.push(lock); dRole.push(ROLE_NUM[role] ?? ROLE_NUM.user); dOwnB.push(0); dOwnN.push(0);
         dirMap.set(norm(full), i);
         const G = groups[g];
         if (G.seen && G.lock !== lock) G.lock = null; // gemischt (z. B. Program Files geschützt, AppData nicht)
@@ -243,74 +367,143 @@ function createFiles(io) {
         if ((parent < 0 || dGroup[parent] !== g) && G.bases.length < 40) G.bases.push(i);
         return i;
       };
-      /** Zuordnung eines Ordners aus der seines Elternordners → [Gruppe, Schutz] (Schutz je Ordner, nicht je Gruppe). */
+      /** Zuordnung eines Ordners aus der seines Elternordners → [Gruppe, Schutz, Rolle] (Schutz und Rolle je Ordner). */
       const groupFor = (full, parent, segs, drive, machine) => {
         const k = norm(full);
         const rg = rootGroup.get(k);
-        if (rg) return [groupOf(rg), null];
-        if (hwBase && k === hwBase) return [groupOf({ key: 'hw:base', label: 'Hostwerk – programs & runtimes', i18n: true, kind: 'hostwerk', cat: 'hostwerk', final: true, lock: 'hostwerk' }), 'hostwerk'];
-        if (parent >= 0 && groups[dGroup[parent]].final) return [dGroup[parent], dLock[parent]];
-        if (!machine) return parent >= 0 ? [dGroup[parent], dLock[parent]] : [groupOf({ key: `top:${keyName(full)}`, label: full, kind: 'folder', cat: 'other', final: true }), null];
+        if (rg) return [groupOf(rg), null, 'hostwerk'];
+        if (hwBase && k === hwBase) return [groupOf({ key: 'hw:base', label: 'Hostwerk – programs & runtimes', i18n: true, kind: 'hostwerk', cat: 'hostwerk', final: true, lock: 'hostwerk' }), 'hostwerk', 'program'];
+        const pRole = parent >= 0 ? ROLE_IDS[dRole[parent]] : 'user';
+        const pLock = parent >= 0 ? dLock[parent] : null;
+        if (machine && segs.length) {
+          // Spiele (Steam-, Epic-, GOG-, Xbox-Bibliotheken – auch auf anderen Laufwerken)
+          const gm = gameOf(segs, steam);
+          if (gm) return [groupOf({ key: `game:${keyName(gm.name)}`, label: gm.name, kind: 'game', cat: 'games', final: true, appId: gm.appId, via: gm.via, installed: true }), gm.role === 'program' ? 'program' : null, gm.role];
+          // Installierter Programmordner laut Windows
+          const ins = instByDir.get(k);
+          if (ins && !(parent >= 0 && groups[dGroup[parent]].cat === 'hostwerk')) {
+            const pf = /\\program files( \(x86\))?\\/i.test(`${k}\\`) || /^\/(applications|opt)\//.test(`${k}/`);
+            return [groupOf({ key: `app:${keyName(ins.name)}`, label: ins.name, kind: 'program', cat: 'apps', final: true, lock: pf ? 'program' : null, publisher: ins.publisher, version: ins.version, installed: true }), pf ? 'program' : pLock, 'program'];
+          }
+        }
+        if (parent >= 0 && groups[dGroup[parent]].final) {
+          // Zwischenspeicher-Ordner in App-Daten oder eigenen Ordnern: kann weg
+          const role = (pRole === 'data' || pRole === 'user') && !pLock && CACHE_DIR.test(P.basename(full)) ? 'cache' : pRole;
+          return [dGroup[parent], pLock, role];
+        }
+        if (!machine) return parent >= 0 ? [dGroup[parent], pLock, pRole] : [groupOf({ key: `top:${keyName(full)}`, label: full, kind: 'folder', cat: 'other', final: true }), null, 'user'];
         const c = classify(segs, drive, win);
-        return [groupOf(c), c.lock || null];
+        if (c.cat === 'apps' && c.final && /^app:/.test(c.key) && !c.lock) c.installed = instKeys.has(c.key.slice(4));
+        if (c.cat === 'apps' && c.lock === 'program') c.installed = true;
+        return [groupOf(c), c.lock || null, roleOf(c)];
       };
 
       let of = 0;
       for (const d of drives) { try { const st = fs.statfsSync(d); of += (st.blocks - st.bavail) * st.bsize; } catch { /* älteres Node */ } }
-      progress = { files: 0, dirs: 0, dir: null, bytes: 0, of, started: now() };
+      progress = { files: 0, dirs: 0, dir: null, bytes: 0, of, counted: 0, started: now() };
       let lastYield = Date.now();
+      /** Einen Ordner lesen: Unterordner anhängen (zuordnen), Dateien messen. */
+      const visit = async ([dir, di, segs, t], stack) => {
+        progress.dir = dir;
+        let ents;
+        try { ents = await fs.promises.readdir(dir, { withFileTypes: true }); } catch { return; }
+        if (t.machine && P.basename(dir).toLowerCase() === 'steamapps') await readSteam(dir, steam);
+        const names = [];
+        for (const e of ents) {
+          if (e.isSymbolicLink()) continue; // auch Verknüpfungen/Junctions („Dokumente und Einstellungen“) – sonst doppelt
+          const full = join(dir, e.name);
+          if (e.isDirectory()) {
+            const k = norm(full);
+            if (dirMap.has(k) || skip.some((s) => inside(s, k))) continue;
+            if (!win && UNIX_SKIP.some((s) => k === s || k.startsWith(`${s}/`))) continue;
+            const csegs = [...segs, e.name];
+            const g = groupFor(full, di, csegs, t.drive, t.machine);
+            stack.push([full, addDir(full, di, g), csegs, t]);
+          } else if (e.isFile()) names.push(e.name);
+        }
+        progress.dirs = dirs.length;
+        if (!names.length) return;
+        const sts = await statAll(names.map((nm) => join(dir, nm)));
+        for (let j = 0; j < names.length; j++) {
+          const st = sts[j];
+          if (!st) continue;
+          dOwnB[di] += st.size; dOwnN[di]++; progress.bytes += st.size; progress.counted++;
+          // Summen zählen weiter; über MAX nur noch große Dateien einzeln (die interessieren beim Aufräumen)
+          if (fDir.length >= MAX && (st.size < BIG_ONLY || fDir.length >= HARD)) { truncated = true; continue; }
+          fDir.push(di); fName.push(names[j]); fSize.push(st.size); fM.push(Math.round(st.mtimeMs)); fT.push(TYPE_NUM[typeOf(names[j])]);
+        }
+        progress.files = fDir.length;
+      };
       for (const t of targets) {
         if (dirMap.has(norm(t.path))) continue;
         const g0 = groupFor(t.path, -1, [], t.drive, t.machine);
-        const stack = [[t.path, addDir(t.path, -1, g0), groups[g0[0]].final ? null : []]];
-        while (stack.length) {
-          const [dir, di, segs] = stack.pop();
-          progress.dir = dir; progress.dirs = dirs.length;
-          let ents;
-          try { ents = await fs.promises.readdir(dir, { withFileTypes: true }); } catch { continue; }
-          const names = [];
-          for (const e of ents) {
-            if (e.isSymbolicLink()) continue; // auch Verknüpfungen/Junctions („Dokumente und Einstellungen“) – sonst doppelt
-            const full = join(dir, e.name);
-            if (e.isDirectory()) {
-              const k = norm(full);
-              if (dirMap.has(k) || skip.some((s) => inside(s, k))) continue;
-              if (!win && UNIX_SKIP.some((s) => k === s || k.startsWith(`${s}/`))) continue;
-              const csegs = segs ? [...segs, e.name] : null;
-              const g = groupFor(full, di, csegs || [], t.drive, t.machine);
-              stack.push([full, addDir(full, di, g), groups[g[0]].final ? null : csegs]);
-            } else if (e.isFile()) names.push(e.name);
-          }
-          if (!names.length) continue;
-          const sts = await statAll(names.map((nm) => join(dir, nm)));
-          for (let j = 0; j < names.length; j++) {
-            const st = sts[j];
-            if (!st) continue;
-            dOwnB[di] += st.size; dOwnN[di]++; progress.bytes += st.size; progress.counted = (progress.counted || 0) + 1;
-            // Summen zählen weiter; über MAX nur noch große Dateien einzeln (die interessieren beim Aufräumen)
-            if (fDir.length >= MAX && (st.size < BIG_ONLY || fDir.length >= HARD)) { truncated = true; continue; }
-            fDir.push(di); fName.push(names[j]); fSize.push(st.size); fM.push(Math.round(st.mtimeMs)); fT.push(TYPE_NUM[typeOf(names[j])]);
-          }
-          progress.files = fDir.length;
-          if (Date.now() - lastYield > 50) { await new Promise((r) => setImmediate(r)); lastYield = Date.now(); }
-        }
+        const stack = [[t.path, addDir(t.path, -1, g0), [], t]];
+        // Mehrere Ordner gleichzeitig (Kinder stehen trotzdem immer hinter ihren Eltern – sie entstehen beim Lesen der Eltern)
+        let active = 0;
+        await new Promise((resolve) => {
+          const pump = () => {
+            while (active < WORKERS && stack.length) {
+              const job = stack.pop();
+              active++;
+              visit(job, stack).catch(() => {}).finally(async () => {
+                active--;
+                if (Date.now() - lastYield > 50) { lastYield = Date.now(); await new Promise((r) => setImmediate(r)); }
+                if (!stack.length && !active) resolve(); else pump();
+              });
+            }
+            if (!stack.length && !active) resolve();
+          };
+          pump();
+        });
       }
-      // Ordnergrößen samt Unterordnern (Kinder stehen immer hinter ihren Eltern)
-      const dB = dOwnB.slice(); const dN = dOwnN.slice();
-      for (let i = dirs.length - 1; i > 0; i--) { const p = dParent[i]; if (p >= 0) { dB[p] += dB[i]; dN[p] += dN[i]; } }
-      // Laufwerke: belegt laut System gegenüber gezählt (Rest = nicht lesbar, z. B. geschützte Systemordner)
+      // Reste: App-Daten einer Anwendung, die Windows nicht mehr als installiert kennt
+      // nur echte Programm-Daten (AppData, ProgramData) – Werkzeuge in Punkt-Ordnern (.cache, .npm …) haben keinen Eintrag in Windows
+      for (const G of groups) G.leftover = !!(installed.length && G.cat === 'apps' && G.kind === 'program' && /^app:/.test(G.id) && !G.installed && G.id !== 'app:storeapps');
+      for (const G of groups) { delete G.seen; }
       const driveInfo = [];
       for (const d of drives) {
         let total = null; let free = null;
         try { const s = fs.statfsSync(d); total = s.blocks * s.bsize; free = s.bavail * s.bsize; } catch { /* älteres Node */ }
-        const i = dirMap.get(norm(d));
-        driveInfo.push({ path: d, label: win ? d.replace(/\\$/, '') : d, total, free, used: total != null ? total - free : null, counted: i !== undefined ? dB[i] : 0, files: i !== undefined ? dN[i] : 0 });
+        driveInfo.push({ path: d, label: win ? d.replace(/\\$/, '') : d, total, free, used: total != null ? total - free : null, counted: 0, files: 0 });
       }
-      index = { at: now(), mode, groups, dirs, dParent, dGroup, dLock,dFirst, dNext, dOwnB, dOwnN, dB, dN, dirMap, fDir, fName, fSize, fM, fT, truncated, drives: driveInfo, lower: null };
+      index = finish({ v: 2, at: now(), mode, groups, dirs, dParent, dGroup, dLock, dRole, dOwnB, dOwnN, fDir, fName, fSize, fM, fT, truncated, drives: driveInfo });
+      touch();
       if (dups.at) dups = { ...dups, stale: true };
+      save().catch(() => {});
       return index;
     })().finally(() => { scanning = null; progress = { files: 0, dirs: 0, dir: null }; });
     return scanning;
+  }
+
+  /* ---------- Index auf Platte: nach einem Neustart sofort da, Neu-Einlesen im Hintergrund ---------- */
+  const KEEP = ['v', 'at', 'mode', 'groups', 'dirs', 'dParent', 'dGroup', 'dLock', 'dRole', 'dOwnB', 'dOwnN', 'fDir', 'fName', 'fSize', 'fM', 'fT', 'truncated', 'drives'];
+  async function save() {
+    if (!io.cacheFile || !index) return false;
+    const v8 = require('v8'); const zlib = require('zlib');
+    const data = {};
+    for (const k of KEEP) data[k] = index[k];
+    const buf = await new Promise((res, rej) => zlib.gzip(v8.serialize(data), { level: 3 }, (e, b) => (e ? rej(e) : res(b))));
+    fs.mkdirSync(path.dirname(io.cacheFile), { recursive: true });
+    const tmp = `${io.cacheFile}.${process.pid}.${crypto.randomBytes(4).toString('hex')}.tmp`; // je Vorgang eigener Name
+    await fs.promises.writeFile(tmp, buf);
+    try { await fs.promises.rename(tmp, io.cacheFile); } catch (e) { await fs.promises.rm(tmp, { force: true }); throw e; }
+    return true;
+  }
+  async function load() {
+    if (!io.cacheFile || index) return !!index;
+    try {
+      const v8 = require('v8'); const zlib = require('zlib');
+      const buf = await fs.promises.readFile(io.cacheFile);
+      const data = v8.deserialize(await new Promise((res, rej) => zlib.gunzip(buf, (e, b) => (e ? rej(e) : res(b)))));
+      if (!data || data.v !== 2 || !Array.isArray(data.dirs)) return false;
+      if (index) return true; // inzwischen frisch eingelesen
+      index = finish(data);
+      // Laufwerke frisch (frei/belegt ändert sich laufend)
+      for (const dv of index.drives) { try { const s = fs.statfsSync(dv.path); dv.total = s.blocks * s.bsize; dv.free = s.bavail * s.bsize; dv.used = dv.total - dv.free; } catch { /* egal */ } }
+      index.cached = true;
+      touch();
+      return true;
+    } catch { return false; }
   }
 
   const fullOf = (i) => join(index.dirs[index.fDir[i]], index.fName[i]);
@@ -320,16 +513,23 @@ function createFiles(io) {
     if (index.dParent[index.fDir[i]] < 0 && SYSTEM_FILES.test(index.fName[i])) return 'system';
     return null;
   };
+  /** Rolle einer Datei: die ihres Ordners, Auslagerungsdateien = System, Reste wie *.tmp = Zwischenspeicher. */
+  const roleNumOf = (i) => {
+    const d = index.fDir[i]; const r = index.dRole[d];
+    if (index.dParent[d] < 0 && SYSTEM_FILES.test(index.fName[i])) return ROLE_NUM.system;
+    if ((r === ROLE_NUM.data || r === ROLE_NUM.user) && !index.dLock[d] && JUNK_FILE.test(index.fName[i])) return ROLE_NUM.cache;
+    return r;
+  };
   function item(i) {
     const G = index.groups[index.dGroup[index.fDir[i]]];
     const full = fullOf(i);
-    const x = { id: full, path: full, dir: index.dirs[index.fDir[i]], name: index.fName[i], size: index.fSize[i], mtime: index.fM[i], type: TYPE_IDS[index.fT[i]], group: G.id };
+    const x = { id: full, path: full, dir: index.dirs[index.fDir[i]], name: index.fName[i], size: index.fSize[i], mtime: index.fM[i], type: TYPE_IDS[index.fT[i]], group: G.id, role: ROLE_IDS[roleNumOf(i)] };
     if (G.root && G.rootPath) { x.root = G.root; x.rel = P.relative(G.rootPath, full).split(sep).join('/'); }
     const lock = lockOf(i);
     if (lock) x.lock = lock;
     return x;
   }
-  /** Spalte einer Datei aus ihrem Pfad (nur was im Index steht, zählt). */
+  /** Spalten mehrerer Dateien aus ihren Pfaden – ein Durchlauf (nur was im Index steht, zählt). */
   function findMany(list) {
     const out = new Map(); // Pfad → Spalte
     if (!index) return out;
@@ -353,20 +553,37 @@ function createFiles(io) {
   }
   const find = (full) => { const r = findMany([full]).get(full); return r === undefined ? -1 : r; };
 
+  /** Übersicht: Gruppen mit Größen je Art und Rolle, Laufwerke, Summen – nur neu gerechnet, wenn sich etwas geändert hat. */
   function summary() {
-    const base = { scanning: !!scanning, progress: { ...progress }, max: MAX, typeIds: TYPE_IDS };
-    if (!index) return { ...base, at: null, mode: null, groups: [], drives: [], totals: { files: 0, bytes: 0, types: {} }, truncated: false };
-    const gs = index.groups.map((g) => ({ id: g.id, label: g.label, i18n: g.i18n, sub: g.sub, kind: g.kind, cat: g.cat, lock: g.lock, root: g.root, path: g.rootPath || (g.bases.length ? index.dirs[g.bases.reduce((a, b) => (index.dB[b] > index.dB[a] ? b : a))] : null), places: g.bases.length, files: 0, bytes: 0, types: {}, newest: 0 }));
-    for (let d = 0; d < index.dirs.length; d++) { const g = gs[index.dGroup[d]]; g.bytes += index.dOwnB[d]; g.files += index.dOwnN[d]; }
-    const totals = { files: 0, bytes: 0, types: {} };
-    for (let i = 0; i < index.fDir.length; i++) {
-      if (index.fDir[i] < 0) continue;
-      const g = gs[index.dGroup[index.fDir[i]]]; const t = TYPE_IDS[index.fT[i]]; const s = index.fSize[i];
-      g.types[t] = (g.types[t] || 0) + s; if (index.fM[i] > g.newest) g.newest = index.fM[i];
-      totals.types[t] = (totals.types[t] || 0) + s;
+    const base = { scanning: !!scanning, progress: { ...progress }, max: MAX, typeIds: TYPE_IDS, roleIds: ROLE_IDS };
+    if (!index) return { ...base, at: null, mode: null, groups: [], drives: [], totals: { files: 0, bytes: 0, types: {}, roles: {} }, truncated: false };
+    if (!sumCache || sumCache.version !== version) {
+      const gs = index.groups.map((g) => ({
+        id: g.id, label: g.label, i18n: g.i18n, sub: g.sub, kind: g.kind, cat: g.cat, lock: g.lock, root: g.root,
+        path: g.rootPath || (g.bases.length ? index.dirs[g.bases.reduce((a, b) => (index.dB[b] > index.dB[a] ? b : a))] : null),
+        places: g.bases.length, publisher: g.publisher, version: g.version, installed: g.installed, leftover: g.leftover, appId: g.appId, via: g.via,
+        files: 0, bytes: 0, types: {}, roles: {}, newest: 0,
+      }));
+      const totals = { files: 0, bytes: 0, types: {}, roles: {} };
+      for (let d = 0; d < index.dirs.length; d++) {
+        const g = gs[index.dGroup[d]]; const b = index.dOwnB[d]; const r = ROLE_IDS[index.dRole[d]];
+        g.bytes += b; g.files += index.dOwnN[d]; g.roles[r] = (g.roles[r] || 0) + b;
+      }
+      for (let i = 0; i < index.fDir.length; i++) {
+        const d = index.fDir[i];
+        if (d < 0) continue;
+        const g = gs[index.dGroup[d]]; const t = TYPE_IDS[index.fT[i]]; const s = index.fSize[i];
+        g.types[t] = (g.types[t] || 0) + s; if (index.fM[i] > g.newest) g.newest = index.fM[i];
+        totals.types[t] = (totals.types[t] || 0) + s;
+        // Einzelne Reste (*.tmp …) in sonst wichtigen Ordnern zählen als Zwischenspeicher
+        const rn = roleNumOf(i);
+        if (rn !== index.dRole[d]) { const from = ROLE_IDS[index.dRole[d]]; const to = ROLE_IDS[rn]; g.roles[from] -= s; g.roles[to] = (g.roles[to] || 0) + s; }
+      }
+      for (const g of gs) { totals.files += g.files; totals.bytes += g.bytes; for (const [r, b] of Object.entries(g.roles)) totals.roles[r] = (totals.roles[r] || 0) + b; }
+      sumCache = { version, at: index.at, mode: index.mode, groups: gs.filter((g) => g.files > 0), drives: index.drives, totals, truncated: index.truncated, cached: !!index.cached };
     }
-    for (const g of gs) { totals.files += g.files; totals.bytes += g.bytes; }
-    return { ...base, at: index.at, mode: index.mode, groups: gs.filter((g) => g.files > 0), drives: index.drives, totals, truncated: index.truncated };
+    const { version: _v, ...rest } = sumCache;
+    return { ...base, ...rest };
   }
 
   /** Ordner samt Unterordnern als Menge (für den Filter dir=…). */
@@ -377,12 +594,32 @@ function createFiles(io) {
     return inSub;
   }
 
+  /** Suchwörter: „.iso“ = Endung, „>1gb“ / „<10mb“ = Größe, sonst Teil von Name oder Ordner. */
+  function parseQuery(q) {
+    const out = { words: [], exts: [], min: 0, max: 0 };
+    const unit = { b: 1, kb: 1024, mb: 1048576, gb: 1073741824, tb: 1099511627776 };
+    for (const w of String(q || '').trim().toLowerCase().split(/\s+/).filter(Boolean)) {
+      const m = /^([<>])(\d+(?:[.,]\d+)?)(b|kb|mb|gb|tb)?$/.exec(w);
+      if (m) { const v = Number(m[2].replace(',', '.')) * unit[m[3] || 'mb']; if (m[1] === '>') out.min = v; else out.max = v; continue; }
+      const m2 = /^(\d+(?:[.,]\d+)?)(b|kb|mb|gb|tb)([+-])$/.exec(w); // 500mb+ / 1gb-
+      if (m2) { const v = Number(m2[1].replace(',', '.')) * unit[m2[2]]; if (m2[3] === '+') out.min = v; else out.max = v; continue; }
+      if (/^\.[a-z0-9]{1,8}$/.test(w)) { out.exts.push(w); continue; }
+      if (/^ext:[a-z0-9]{1,8}$/.test(w)) { out.exts.push(`.${w.slice(4)}`); continue; }
+      out.words.push(w);
+    }
+    return out;
+  }
+
   /** Treffer für eine Abfrage – Spalten-Nummern. */
   function hitsFor(q = {}) {
     const gIds = new Set(String(q.group || '').split(',').filter(Boolean));
     if (q.root) for (const r of String(q.root).split(',').filter(Boolean)) gIds.add(`hw:${r}`);
-    const gSet = gIds.size ? new Set(index.groups.map((g, i) => (gIds.has(g.id) ? i : -1)).filter((i) => i >= 0)) : null;
-    if (gSet && !gSet.size) return { hits: [], bytes: 0 };
+    const cats = q.cat ? new Set(String(q.cat).split(',').filter(Boolean)) : null;
+    let gSet = null;
+    if (gIds.size || cats) {
+      gSet = new Set(index.groups.map((g, i) => ((gIds.size ? gIds.has(g.id) : true) && (!cats || cats.has(g.cat)) ? i : -1)).filter((i) => i >= 0));
+      if (!gSet.size) return { hits: [], bytes: 0 };
+    }
     let dirSet = null;
     if (q.dir) {
       const di = index.dirMap.get(norm(String(q.dir)));
@@ -390,30 +627,38 @@ function createFiles(io) {
       dirSet = subtree(di);
     }
     const types = q.type ? new Set(String(q.type).split(',').filter(Boolean).map((t) => TYPE_NUM[t]).filter((n) => n !== undefined)) : null;
-    const words = String(q.q || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
-    const minSize = Number(q.minSize) > 0 ? Number(q.minSize) : 0;
+    const roles = q.role ? new Set(String(q.role).split(',').filter(Boolean).map((r) => ROLE_NUM[r]).filter((n) => n !== undefined)) : null;
+    const pq = parseQuery(q.q);
+    const minSize = Math.max(Number(q.minSize) > 0 ? Number(q.minSize) : 0, pq.min);
+    const maxSize = Number(q.maxSize) > 0 ? Number(q.maxSize) : pq.max;
     const olderThan = Number(q.olderThan) > 0 ? now() - Number(q.olderThan) * 86400000 : 0;
     const newerThan = Number(q.newerThan) > 0 ? now() - Number(q.newerThan) * 86400000 : 0;
-    if (words.length && !index.lower) index.lower = index.dirs.map((d) => d.toLowerCase());
+    if (pq.words.length && !index.lower) index.lower = index.dirs.map((d) => d.toLowerCase());
+    if ((pq.words.length || pq.exts.length) && !index.lowerNames) index.lowerNames = index.fName.map((n) => n.toLowerCase());
     let bytes = 0;
     const hits = [];
-    const { fDir, fSize, fM, fT, fName, dGroup } = index;
+    const { fDir, fSize, fM, fT, dGroup } = index;
+    const ln = index.lowerNames;
     for (let i = 0; i < fDir.length; i++) {
       const d = fDir[i];
       if (d < 0) continue;
       if (gSet && !gSet.has(dGroup[d])) continue;
       if (dirSet && !dirSet[d]) continue;
       if (types && !types.has(fT[i])) continue;
-      if (minSize && fSize[i] < minSize) continue;
+      const s = fSize[i];
+      if (minSize && s < minSize) continue;
+      if (maxSize && s > maxSize) continue;
       if (olderThan && fM[i] > olderThan) continue;
       if (newerThan && fM[i] < newerThan) continue;
-      if (words.length) {
-        const n = fName[i].toLowerCase(); const dl = index.lower[d];
+      if (roles && !roles.has(roleNumOf(i))) continue;
+      if (pq.exts.length) { const n = ln[i]; if (!pq.exts.some((e) => n.endsWith(e))) continue; }
+      if (pq.words.length) {
+        const n = ln[i]; const dl = index.lower[d];
         let ok = true;
-        for (const w of words) if (!n.includes(w) && !dl.includes(w)) { ok = false; break; }
+        for (const w of pq.words) if (!n.includes(w) && !dl.includes(w)) { ok = false; break; }
         if (!ok) continue;
       }
-      hits.push(i); bytes += fSize[i];
+      hits.push(i); bytes += s;
     }
     return { hits, bytes };
   }
@@ -428,17 +673,24 @@ function createFiles(io) {
       group: byGroup,
       root: byGroup,
       type: (a, b) => ((fT[a] - fT[b]) * -dir) || fSize[b] - fSize[a],
+      role: (a, b) => ((roleNumOf(a) - roleNumOf(b)) * -dir) || fSize[b] - fSize[a],
     }[q.sort] || ((a, b) => fSize[b] - fSize[a]);
   }
 
-  /** Gefilterte, sortierte Seite der Liste. */
+  /** Gefilterte, sortierte Seite der Liste – dazu Summen je Art und Rolle der Treffer (für die Filter-Zahlen). */
   function list(q = {}) {
     if (!index) return { at: null, total: 0, bytes: 0, items: [] };
     const { hits, bytes } = hitsFor(q);
     const offset = Math.max(0, Number(q.offset) || 0);
     const limit = Math.min(500, Math.max(1, Number(q.limit) || 100));
     const page = topK(hits, offset + limit, comparator(q)).slice(offset, offset + limit);
-    return { at: index.at, total: hits.length, bytes, items: page.map(item) };
+    const out = { at: index.at, total: hits.length, bytes, items: page.map(item) };
+    if (q.facets && !offset) {
+      const types = {}; const roles = {};
+      for (const i of hits) { const t = TYPE_IDS[index.fT[i]]; const r = ROLE_IDS[roleNumOf(i)]; types[t] = (types[t] || 0) + index.fSize[i]; roles[r] = (roles[r] || 0) + index.fSize[i]; }
+      out.facets = { types, roles };
+    }
+    return out;
   }
 
   /** Liste als CSV (Trennzeichen ;, mit BOM – für Excel). */
@@ -447,15 +699,15 @@ function createFiles(io) {
     const { hits } = hitsFor(q);
     const rows = topK(hits, Math.min(100000, hits.length), comparator(q));
     const esc = (s) => (/[";\n\r]/.test(String(s)) ? `"${String(s).replace(/"/g, '""')}"` : String(s));
-    const lines = ['path;name;size;modified;kind;belongs_to'];
-    for (const i of rows) lines.push([fullOf(i), index.fName[i], index.fSize[i], new Date(index.fM[i]).toISOString(), TYPE_IDS[index.fT[i]], index.groups[index.dGroup[index.fDir[i]]].label].map(esc).join(';'));
-    return `﻿${lines.join('\r\n')}\r\n`;
+    const lines = ['path;name;size;modified;kind;belongs_to;role'];
+    for (const i of rows) lines.push([fullOf(i), index.fName[i], index.fSize[i], new Date(index.fM[i]).toISOString(), TYPE_IDS[index.fT[i]], index.groups[index.dGroup[index.fDir[i]]].label, ROLE_IDS[roleNumOf(i)]].map(esc).join(';'));
+    return `\ufeff${lines.join('\r\n')}\r\n`;
   }
 
   /** Ordnerbaum: ein Ordner mit seinen Unterordnern (größte zuerst). Ohne dir: Laufwerke bzw. die Orte einer Gruppe. */
   function tree({ dir, group } = {}) {
     if (!index) return { at: null, kids: [] };
-    const node = (i) => ({ path: index.dirs[i], name: P.basename(index.dirs[i]) || index.dirs[i], bytes: index.dB[i], files: index.dN[i], group: index.groups[index.dGroup[i]].id, kids: index.dFirst[i] >= 0 });
+    const node = (i) => ({ path: index.dirs[i], name: P.basename(index.dirs[i]) || index.dirs[i], bytes: index.dB[i], files: index.dN[i], group: index.groups[index.dGroup[i]].id, role: ROLE_IDS[index.dRole[i]], kids: index.dFirst[i] >= 0 });
     if (!dir) {
       let tops;
       if (group) {
@@ -473,6 +725,13 @@ function createFiles(io) {
     const crumbs = [];
     for (let p = di; p >= 0; p = index.dParent[p]) crumbs.unshift({ path: index.dirs[p], name: P.basename(index.dirs[p]) || index.dirs[p] });
     return { at: index.at, ...node(di), crumbs, own: { bytes: index.dOwnB[di], files: index.dOwnN[di] }, kids: kids.slice(0, 300), more: Math.max(0, kids.length - 300) };
+  }
+
+  /** Größe eines Ordners samt Unterordnern laut Index (für den Papierkorb) – null, wenn er nicht drinsteht. */
+  function dirSize(p) {
+    if (!index) return null;
+    const di = index.dirMap.get(norm(String(p || '')));
+    return di === undefined ? null : { bytes: index.dB[di], files: index.dN[di] };
   }
 
   /** Eintrag aus dem Index nehmen (nach dem Löschen) – Summen der Ordner und Laufwerke mit. */
@@ -526,8 +785,9 @@ function createFiles(io) {
       }
     }
     for (const d of done) drop(d.i);
+    if (done.length) touch();
     forgetDups(done.map((d) => d.path));
-    return { ok: !failed.length, done: done.length, recycled: done.filter((d) => d.where === 'recycle').length, failed };
+    return { ok: !failed.length, done: done.length, recycled: done.filter((d) => d.where === 'recycle').length, bytes: done.reduce((a, d) => a + index.fSize[d.i], 0), failed };
   }
 
   function rename({ path: p, name } = {}) {
@@ -543,6 +803,8 @@ function createFiles(io) {
     if (fs.existsSync(b) && a.toLowerCase() !== b.toLowerCase()) throw fail('A file with this name already exists', 409);
     fs.renameSync(a, b);
     index.fName[i] = n; index.fT[i] = TYPE_NUM[typeOf(n)];
+    if (index.lowerNames) index.lowerNames[i] = n.toLowerCase();
+    touch();
     forgetDups([a]);
     return { ok: true, path: b };
   }
@@ -590,7 +852,7 @@ function createFiles(io) {
           const d = index.fDir[i];
           if (d < 0 || index.fSize[i] < minSize) continue;
           if (gi >= 0 && index.dGroup[d] !== gi) continue;
-          if (index.dLock[d] === 'system') continue; // Windows hält Dateien gewollt mehrfach
+          if (index.dLock[d] === 'system' || index.dRole[d] === ROLE_NUM.program) continue; // Windows und Programme halten Dateien gewollt mehrfach
           const l = bySize.get(index.fSize[i]); if (l) l.push(i); else bySize.set(index.fSize[i], [i]);
         }
         const cands = [...bySize.entries()].filter(([, l]) => l.length > 1).sort((a, b) => b[0] * (b[1].length - 1) - a[0] * (a[1].length - 1));
@@ -611,7 +873,7 @@ function createFiles(io) {
   function knownDir(p) { if (!index) throw fail('No list of files yet', 404); const di = index.dirMap.get(norm(String(p || ''))); if (di === undefined) throw fail('Folder not in the list', 404); return index.dirs[di]; }
 
   return {
-    scan, summary, list, csv, tree, remove, rename, findDuplicates, known, knownDir,
+    scan, load, save, summary, list, csv, tree, remove, rename, findDuplicates, known, knownDir, dirSize, parseQuery,
     duplicates: () => dups,
     ready: () => !!index,
     isStale: () => !index || now() - index.at > RESCAN_MS,
@@ -630,6 +892,25 @@ function listDrives(platform = process.platform) {
       const found = []; // Rückfall: Laufwerksbuchstaben, die es gibt
       for (let c = 67; c <= 90; c++) { const d = `${String.fromCharCode(c)}:\\`; try { fs.statfsSync(d); found.push(d); } catch { /* nicht da */ } }
       return resolve(found);
+    });
+  });
+}
+
+/** Installierte Programme aus der Registry (Uninstall-Schlüssel, Rechner und Benutzer) – nur lesen. */
+function listInstalled(platform = process.platform) {
+  if (platform !== 'win32') return Promise.resolve([]);
+  const script = [
+    "$k = 'HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*','HKLM:\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*','HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*'",
+    '$l = Get-ItemProperty $k -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -and -not $_.SystemComponent } | ForEach-Object {',
+    '  $loc = $_.InstallLocation',
+    "  if (-not $loc -and $_.DisplayIcon) { $ic = ($_.DisplayIcon -split ',')[0].Trim('\"'); if ($ic -match '\\\\[^\\\\]+\\.exe$') { $loc = Split-Path $ic -Parent } }",
+    '  [pscustomobject]@{ name = $_.DisplayName; publisher = $_.Publisher; version = $_.DisplayVersion; location = $loc }',
+    '}',
+    'ConvertTo-Json -InputObject @($l) -Compress',
+  ].join('\n');
+  return new Promise((resolve) => {
+    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { windowsHide: true, timeout: 30000, maxBuffer: 16 * 1048576 }, (err, out) => {
+      try { const r = JSON.parse(String(out || '').trim() || '[]'); resolve((Array.isArray(r) ? r : [r]).filter((x) => x && x.name)); } catch { resolve([]); }
     });
   });
 }
@@ -656,6 +937,8 @@ function revealNative(full, isDir, platform = process.platform) {
   else if (platform === 'darwin') execFile('open', isDir ? [full] : ['-R', full], () => {});
   else execFile('xdg-open', [isDir ? full : path.dirname(full)], () => {});
 }
+/** Nur diese Adressen öffnet Hostwerk für „Deinstallieren“: Windows' Apps-Liste und Steam. */
+const OPEN_OK = /^(ms-settings:appsfeatures|steam:\/\/uninstall\/\d{1,10})$/;
 
 /** In Hostwerk: Bereiche und Papierkorb aus Hostwerks Datei-Dienst (ctx.files), Routen unter /disk-health/files. */
 function mount(host) {
@@ -667,12 +950,14 @@ function mount(host) {
   const files = createFiles({
     roots: () => fsvc.roots(),
     drives: () => (machine() ? listDrives() : Promise.resolve([])),
+    installed: () => listInstalled(),
     hostwerkBase: ctx.paths && ctx.paths.base,
     toTrash: (root, rel) => fsvc.toTrash(root, rel),
     resolve: (root, rel) => fsvc.resolve(root, rel),
     recycle: process.platform === 'win32' ? recycleWin : null,
     trashAbs: typeof fsvc.trashAbs === 'function' ? (full, o) => fsvc.trashAbs(full, o) : null,
     skip: [fsvc.trashDir],
+    cacheFile: ctx.paths && ctx.paths.data ? path.join(ctx.paths.data, 'disk-health', 'files-index.v8.gz') : null,
   });
   const r = host.router;
   const kick = () => { if (files.isStale()) files.scan().catch((e) => { if (host.log) host.log('files scan:', e.message); }); };
@@ -695,10 +980,17 @@ function mount(host) {
     revealNative(b.dir ? files.knownDir(b.path) : files.known(b.path), !!b.dir);
     res.json({ ok: true });
   }));
+  r.post('/disk-health/files/open', safe((req, res) => {
+    const u = String((req.body || {}).uri || '');
+    if (!OPEN_OK.test(u) || process.platform !== 'win32') throw Object.assign(new Error('Not allowed'), { status: 400 });
+    execFile('explorer.exe', [u], () => {});
+    res.json({ ok: true });
+  }));
   r.get('/disk-health/files/download', safe((req, res) => res.download(files.known(String((req.query || {}).path || '')))));
   r.get('/disk-health/files/duplicates', (req, res) => res.json(files.duplicates()));
   r.post('/disk-health/files/duplicates', safe(async (req, res) => { const b = req.body || {}; res.json(await files.findDuplicates({ minSize: Number(b.minSize) || DUP_MIN, group: b.group || null })); }));
-  // Erstes Einlesen, wenn Hostwerk gestartet ist; danach alle sechs Stunden (oder beim Öffnen, wenn älter)
+  // Gespeicherten Index sofort laden (die Seite ist gleich da); neu einlesen, wenn älter als sechs Stunden – nach dem Start
+  files.load().catch(() => false);
   const first = setTimeout(kick, 120000);
   const timer = setInterval(kick, RESCAN_MS);
   for (const x of [first, timer]) if (x && x.unref) x.unref();
@@ -706,4 +998,4 @@ function mount(host) {
   return files;
 }
 
-module.exports = { createFiles, mount, typeOf, classify, pkgName, topK, TYPE_IDS, MAX_FILES };
+module.exports = { createFiles, mount, listInstalled, typeOf, classify, gameOf, pkgName, topK, TYPE_IDS, ROLE_IDS, MAX_FILES };

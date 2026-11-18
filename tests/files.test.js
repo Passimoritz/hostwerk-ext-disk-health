@@ -286,3 +286,115 @@ test('Obergrenze: Einzelliste endet, Summen zählen weiter', async () => {
   assert.strictEqual(s.totals.bytes, 60);
   assert.strictEqual(files.list({}).total, 4);
 });
+
+/* ---------- 2.4: Spiele, installierte Programme, Wichtigkeit, Suche, gespeicherter Index ---------- */
+
+/** Laufwerk mit Steam-Bibliothek, Epic-Spiel, installiertem Programm (laut „Registry“), Resten und Zwischenspeicher. */
+function machine2() {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'hw-dh-m2-'));
+  const w = writer(base);
+  w('Program Files (x86)/Steam/steam.exe', Buffer.alloc(100, 1));
+  w('Program Files (x86)/Steam/steamapps/appmanifest_292030.acf', '"AppState"\n{\n\t"appid"\t\t"292030"\n\t"name"\t\t"The Witcher 3: Wild Hunt"\n\t"installdir"\t\t"The Witcher 3"\n}');
+  w('Program Files (x86)/Steam/steamapps/common/The Witcher 3/bin/witcher3.exe', Buffer.alloc(9000, 2));
+  w('Program Files (x86)/Steam/steamapps/shadercache/292030/fozpipelinesv6/x.foz', Buffer.alloc(700, 3));
+  w('Games/SteamLibrary/steamapps/common/Portal 2/portal2.exe', Buffer.alloc(4000, 4));
+  w('Program Files/Epic Games/Fortnite/FortniteGame/x.pak', Buffer.alloc(6000, 5));
+  w('Tools/MyEditor/editor.exe', Buffer.alloc(800, 6));
+  w('Users/bob/AppData/Local/MyEditor/settings.json', '{}');
+  w('Users/bob/AppData/Local/MyEditor/Cache/blob.bin', Buffer.alloc(1200, 7));
+  w('Users/bob/AppData/Roaming/OldTool/data.db', Buffer.alloc(300, 8));
+  w('Users/bob/AppData/Local/Temp/x.tmp', Buffer.alloc(50, 9));
+  w('Users/bob/Documents/report.pdf', Buffer.alloc(400, 10));
+  w('Users/bob/Documents/~$report.docx', Buffer.alloc(20, 11));
+  w('Windows/notepad.exe', Buffer.alloc(200, 12));
+  const P = (rel) => path.join(base, ...rel.split('/'));
+  const installed = [{ name: 'My Editor Pro', publisher: 'Acme', version: '2.1', location: P('Tools/MyEditor') }, { name: 'MyEditor', location: '' }];
+  const cacheFile = path.join(base, 'cache', 'index.v8.gz');
+  const mk = () => createFiles({ roots: () => [], drives: async () => [base], installed: async () => installed, resolve() { throw new Error('x'); }, toTrash() {}, cacheFile, workers: 4 });
+  return { base, P, mk, cacheFile };
+}
+
+test('Spiele: Steam (Name aus appmanifest, auch andere Bibliothek), Epic; Shader-Cache gehört zum Spiel und kann weg', WIN_ONLY, async () => {
+  const { mk } = machine2();
+  const files = mk();
+  await files.scan();
+  const by = Object.fromEntries(files.summary().groups.map((g) => [g.id, g]));
+  const w3 = by['game:thewitcher3wildhunt'];
+  assert.ok(w3, 'Witcher 3 als Spiel');
+  assert.strictEqual(w3.cat, 'games');
+  assert.strictEqual(w3.appId, '292030');
+  assert.strictEqual(w3.label, 'The Witcher 3: Wild Hunt');
+  assert.strictEqual(w3.roles.program, 9000);
+  assert.strictEqual(w3.roles.cache, 700);
+  assert.strictEqual(by['game:portal2'].files, 1, 'zweite Steam-Bibliothek auf anderem Ordner');
+  assert.strictEqual(by['game:fortnite'].files, 1);
+  assert.strictEqual(by['app:steam'].files, 2, 'Steam selbst ohne die Spiele');
+});
+
+test('Installierte Programme: Name und Herausgeber aus Windows, App-Daten dazu, Reste erkannt', WIN_ONLY, async () => {
+  const { mk } = machine2();
+  const files = mk();
+  await files.scan();
+  const by = Object.fromEntries(files.summary().groups.map((g) => [g.id, g]));
+  const ed = by['app:myeditorpro'];
+  assert.ok(ed, 'Programmordner laut Registry');
+  assert.strictEqual(ed.publisher, 'Acme');
+  assert.strictEqual(ed.installed, true);
+  assert.strictEqual(by['app:myeditor'].installed, true, 'App-Daten passen zum installierten Namen');
+  assert.strictEqual(by['app:myeditor'].leftover, false);
+  assert.strictEqual(by['app:oldtool'].leftover, true, 'nicht mehr installiert');
+});
+
+test('Wichtigkeit: System, Programm, App-Daten, Zwischenspeicher, eigene Dateien – Filter und Summen', WIN_ONLY, async () => {
+  const { mk } = machine2();
+  const files = mk();
+  await files.scan();
+  const role = (q) => files.list({ q }).items[0].role;
+  assert.strictEqual(role('notepad'), 'system');
+  assert.strictEqual(role('witcher3.exe'), 'program');
+  assert.strictEqual(role('settings.json'), 'data');
+  assert.strictEqual(role('blob.bin'), 'cache', 'Cache-Ordner in App-Daten');
+  assert.strictEqual(role('x.tmp'), 'cache');
+  assert.strictEqual(role('report.pdf'), 'user');
+  assert.strictEqual(role('~$report'), 'cache', 'Office-Sperrdatei');
+  const caches = files.list({ role: 'cache', facets: 1 });
+  assert.strictEqual(caches.total, 4);
+  assert.strictEqual(caches.bytes, 700 + 1200 + 50 + 20);
+  assert.strictEqual(caches.facets.roles.cache, caches.bytes);
+  const s = files.summary();
+  assert.strictEqual(s.totals.roles.cache, 700 + 1200 + 50 + 20);
+  assert.strictEqual(files.list({ cat: 'games' }).total, 4);
+  assert.strictEqual(files.summary().groups, files.summary().groups, 'Übersicht aus dem Zwischenspeicher, solange sich nichts ändert');
+});
+
+test('Suche: Endung, Größe, Wörter', async () => {
+  const { files, P } = hostwerkOnly();
+  await files.scan();
+  assert.strictEqual(files.list({ q: '.png' }).total, 2);
+  assert.strictEqual(files.list({ q: 'ext:zip' }).total, 2);
+  assert.strictEqual(files.list({ q: '>100kb' }).total, 2);
+  assert.strictEqual(files.list({ q: '<1kb' }).total, 2);
+  assert.strictEqual(files.list({ q: 'img .png <10kb' }).total, 2);
+  assert.strictEqual(files.list({ maxSize: 4000 }).total, 3);
+  assert.strictEqual(files.list({ q: '100kb+' }).total, 2, 'Größe auch als 100kb+ / 1kb-');
+  assert.strictEqual(files.list({ q: '1kb-' }).total, 2);
+  assert.deepStrictEqual(files.parseQuery('Foto .JPG >2,5mb'), { words: ['foto'], exts: ['.jpg'], min: 2.5 * 1048576, max: 0 });
+  assert.ok(P('htdocs'));
+});
+
+test('Gespeicherter Index: nach einem Neustart sofort da, gleiche Zahlen', WIN_ONLY, async () => {
+  const { mk, cacheFile } = machine2();
+  const a = mk();
+  await a.scan();
+  await a.save();
+  assert.ok(fs.existsSync(cacheFile));
+  const b = mk();
+  assert.strictEqual(await b.load(), true);
+  const sa = a.summary(); const sb = b.summary();
+  assert.strictEqual(sb.cached, true);
+  assert.strictEqual(sb.totals.files, sa.totals.files);
+  assert.strictEqual(sb.totals.bytes, sa.totals.bytes);
+  assert.deepStrictEqual(sb.totals.roles, sa.totals.roles);
+  assert.strictEqual(b.list({ q: 'witcher3' }).total, 1);
+  assert.strictEqual(b.tree({}).kids.length, 1);
+});

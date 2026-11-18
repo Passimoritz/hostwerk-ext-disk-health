@@ -13,7 +13,7 @@ const unescape = (s) => s.replace(/\\n/g, '\n').replace(/\\'/g, "'");
 function uiTexts() {
   // 2.2: auch der Teil „Dateien“ (ui/src/files.jsx)
   // 2.0: auch der Teil „Belegung“ (ui/src/usage.jsx, früher Erweiterung „Speicher je Dienst“)
-  const src = ['index.jsx', 'usage.jsx', 'files.jsx'].map((n) => fs.readFileSync(path.join(__dirname, '..', 'ui', 'src', n), 'utf8')).join('\n');
+  const src = ['index.jsx', 'usage.jsx', 'files.jsx', 'bin.jsx'].map((n) => fs.readFileSync(path.join(__dirname, '..', 'ui', 'src', n), 'utf8')).join('\n');
   const out = new Set();
   const add = (s) => { const v = unescape(s).trim(); if (/[A-Za-z]{2}/.test(v)) out.add(v); };
   for (const m of src.matchAll(/\bt\('((?:[^'\\]|\\.)*)'/g)) add(m[1]);
@@ -22,7 +22,7 @@ function uiTexts() {
   for (const m of src.matchAll(/\b(?:title|text|tipTitle)="([^"]+)"/g)) add(m[1]);
   for (const m of src.matchAll(/>([^<>{}]*[A-Za-z][^<>{}]*)</g)) if (!/[=;()]|=>/.test(m[1])) add(m[1]);
   // LEVEL/MEDIA/REASON: label: '…' and 'key': '…' inside the maps
-  for (const name of ['LEVEL', 'MEDIA', 'REASON', 'KIND', 'PART', 'TYPE', 'GROUP', 'LABEL']) {
+  for (const name of ['LEVEL', 'MEDIA', 'REASON', 'KIND', 'PART', 'TYPE', 'GROUP', 'LABEL', 'ROLE']) {
     const block = src.slice(src.indexOf(`const ${name} = {`), src.indexOf('};', src.indexOf(`const ${name} = {`)));
     for (const m of block.matchAll(/(?:label: |: )'((?:[^'\\]|\\.)*)'/g)) add(m[1]);
   }

@@ -2,7 +2,9 @@
 
 # Drives
 
-> **New in 2.3: “Files” shows the whole computer** – every file on the drives, sorted by program, service and folder, with the used space in the bar on the left, a folder tree, duplicates and clean-up (Hostwerk’s folders go to Hostwerk’s bin, the rest to the Windows recycle bin; Windows and installed programs are protected). Since 2.2 an own tab System → Storage with **Drives** and **Files**. Since 2.0 this also contains the former extension “Storage per service”; whoever had it gets this version automatically, Hostwerk takes the history over and removes the old one. With the setting “Check the drive condition” off there are only used space and files, without drive queries.
+> **New in 2.4: System → Storage with Condition, Used space, Files and Recycle bin** – Files with an overview (what the space is used for, what can be freed), the importance of every file (needed by Windows, program, app data, can go, your own file), recognised games and installed programs; plus the Windows recycle bin to restore and empty.
+>
+> **2.3: “Files” shows the whole computer** – every file on the drives, sorted by program, service and folder, with the used space in the bar on the left, a folder tree, duplicates and clean-up (Hostwerk’s folders go to Hostwerk’s bin, the rest to the Windows recycle bin; Windows and installed programs are protected). Since 2.2 an own tab System → Storage with **Drives** and **Files**. Since 2.0 this also contains the former extension “Storage per service”; whoever had it gets this version automatically, Hostwerk takes the history over and removes the old one. With the setting “Check the drive condition” off there are only used space and files, without drive queries.
 
 The state of every drive at a glance: temperature, wear, read and write errors and power-on hours (S.M.A.R.T.). Alerts you through Hostwerk's notifications when errors grow, a drive runs hot or wears out. With a dashboard tile.
 

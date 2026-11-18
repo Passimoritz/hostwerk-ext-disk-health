@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Files, Search, Image as ImageIcon, Film, Music, ScrollText, Archive, Database, FileText, Code2, Cpu, File, FolderOpen, Download,
   Pencil, Copy, Trash2, RefreshCw, CopyCheck, ArrowDown, ArrowUp, X, ChevronRight, ChevronDown, Globe, Boxes, Folder, Settings2, Server,
-  Layers, HardDrive, Lock, AppWindow, MonitorCog, House, FolderTree, List, MoreHorizontal, FileDown, Recycle, FolderSearch, UserRound, Clock, Gamepad2,
+  Layers, HardDrive, Lock, AppWindow, MonitorCog, House, FolderTree, List, MoreHorizontal, FileDown, Recycle, FolderSearch, UserRound, Clock,
+  Gamepad2, Wrench, LayoutDashboard, ShieldCheck, Package, Eraser, User, Sparkles, BadgeCheck, PackageX, Info,
 } from 'lucide-react';
 import { get, post, apiUrl, useApi, fmtBytes, fmtDate, fmtNumber } from '@hostwerk/api';
 import { Btn, Empty, Loading, Callout, InfoTip, Seg, Progress, toast, confirmDialog, promptDialog } from '@hostwerk/ui';
@@ -10,10 +11,11 @@ import * as Kit from '@hostwerk/kit';
 import { t, pl as hostPl } from '@hostwerk/i18n';
 
 /*
- * Laufwerke, Teil „Dateien“ (2.3, Abschnitt unter System → Speicher): jede Datei auf den Laufwerken des Rechners.
- * Links die Belegung (Laufwerke, Arten) und wem die Dateien gehören (Hostwerk, Programme, persönliche Ordner, System,
- * sonstige Ordner); rechts die Liste (Suche, Art, Größe, Alter), der Ordnerbaum und die Doppelten – mit Mehrfachauswahl,
- * Umbenennen, Herunterladen, „Im Explorer zeigen“, Löschen in den Papierkorb und CSV-Export.
+ * Laufwerke, Teil „Dateien“ (2.4, Abschnitt unter System → Speicher): jede Datei auf den Laufwerken des Rechners.
+ * Links die Belegung (Laufwerke, Arten) und wem die Dateien gehören (Hostwerk, Spiele, Programme & Werkzeuge,
+ * persönliche Ordner, System, sonstige Ordner); rechts die Übersicht (wofür der Platz draufgeht, was weg kann, größte
+ * Spiele und Programme, mögliche Reste), die Liste (Suche mit Endung/Größe, Art, Wichtigkeit, Größe, Alter), der
+ * Ordnerbaum und die Doppelten. Jede Datei zeigt, wie wichtig sie ist (nötig, Programm, App-Daten, kann weg, eigene Datei).
  * Den Index baut der Server-Teil (server/files.js). Texte Englisch, Deutsch aus locales/de.json.
  */
 const TYPE = {
@@ -30,17 +32,29 @@ const TYPE = {
   other: { label: 'Other', icon: File },
 };
 const TYPE_IDS = Object.keys(TYPE);
+/** Wie wichtig eine Datei ist (role vom Server) – Reihenfolge = Anzeige. */
+const ROLE = {
+  system: { label: 'Needed by Windows', short: 'System', icon: ShieldCheck, text: 'Windows needs these files. They are protected.' },
+  program: { label: 'Program & game files', short: 'Program', icon: Package, text: 'Part of an installed program or game – remove it by uninstalling, not by deleting files.' },
+  data: { label: 'App data', short: 'App data', icon: Database, text: 'Settings, profiles and saves of an app – the app needs them. Delete only when you no longer use it.' },
+  cache: { label: 'Cache & temporary – can go', short: 'Can go', icon: Eraser, text: 'Caches, temporary files and crash reports. Deleting them does no harm – apps create or download them again when needed (big model or game caches then take a while).' },
+  user: { label: 'Your own files', short: 'Yours', icon: User, text: 'Files you made or downloaded – you decide.' },
+  hostwerk: { label: 'Hostwerk', short: 'Hostwerk', icon: Server, text: 'Web folders, projects, backups and settings of Hostwerk – manage them in Hostwerk.' },
+  trash: { label: 'In the recycle bin', short: 'Recycle bin', icon: Recycle, text: 'Already deleted, but still taking up space until the recycle bin is emptied.' },
+};
+const ROLE_IDS = ['system', 'program', 'data', 'cache', 'user', 'hostwerk', 'trash'];
 /** Gruppen links (cat vom Server) in dieser Reihenfolge. */
 const GROUP = {
   hostwerk: 'Hostwerk',
-  apps: 'Programs & apps',
+  games: 'Games',
+  apps: 'Programs & tools',
   personal: 'Personal folders',
   system: 'System',
   other: 'Other folders',
 };
 const CAT_ORDER = Object.keys(GROUP);
-const CAT_ICON = { hostwerk: Server, apps: AppWindow, personal: UserRound, system: MonitorCog, other: Folder };
-const KIND_ICON = { web: Globe, project: Layers, app: Boxes, own: Folder, backup: Archive, logs: ScrollText, config: Settings2, program: AppWindow, personal: Folder, system: MonitorCog, temp: Clock, recycle: Recycle, drive: HardDrive, folder: Folder, hostwerk: Server };
+const CAT_ICON = { hostwerk: Server, games: Gamepad2, apps: AppWindow, personal: UserRound, system: MonitorCog, other: Folder };
+const KIND_ICON = { web: Globe, project: Layers, app: Boxes, own: Folder, backup: Archive, logs: ScrollText, config: Settings2, program: AppWindow, tool: Wrench, game: Gamepad2, personal: Folder, system: MonitorCog, temp: Clock, recycle: Recycle, drive: HardDrive, folder: Folder, hostwerk: Server };
 /** Vom Server geschickte Namen (i18n: true) – hier, damit die Übersetzung geprüft wird. */
 const LABEL = {
   users: 'Users', store: 'Store apps', os: 'Operating system', temp: 'Temporary files', pf: 'Programs (other)', pd: 'Program data (other)',
@@ -60,7 +74,8 @@ const REASON = {
   folder: 'Folder not in the list',
 };
 const KNOWN_TEXT = new Set([...Object.values(REASON), ...Object.values(LABEL)]);
-const PRESET = { all: {}, big: { minSize: 100 * 1048576 }, old: { olderThan: 365 }, recent: { newerThan: 7 } };
+const SIZE = { any: {}, s10: { minSize: 10 * 1048576 }, s100: { minSize: 100 * 1048576 }, s1g: { minSize: 1073741824 } };
+const AGE = { any: {}, old1: { olderThan: 365 }, old2: { olderThan: 730 }, new7: { newerThan: 7 }, new30: { newerThan: 30 } };
 const PAGE = 100;
 const SHOW_PER_CAT = 6;
 const keyOf = (x) => x.path;
@@ -76,9 +91,44 @@ function shortPath(p, max = 64) {
   return `${p.slice(0, 14)}…${p.slice(p.length - (max - 15))}`;
 }
 const errText = (e) => { const m = String((e && e.message) || e || ''); return KNOWN_TEXT.has(m) ? t(m) : m; };
+const sumRoles = (roles, ids) => ids.reduce((a, r) => a + ((roles && roles[r]) || 0), 0);
 
 function copy(text) {
   navigator.clipboard.writeText(text).then(() => toast.success('Copied')).catch(() => toast.error('Could not copy'));
+}
+
+function RoleBadge({ role }) {
+  const R = ROLE[role];
+  if (!R) return null;
+  return <span className={`dh-role dh-role-${role}`} title={t(R.text)}><R.icon size={11} aria-hidden="true" />{t(R.short)}</span>;
+}
+
+/** Gestapelter Balken nach Wichtigkeit – ein Klick filtert. */
+function RoleBar({ roles, onPick, value, big }) {
+  const list = ROLE_IDS.filter((r) => roles && roles[r] > 0);
+  const total = list.reduce((a, r) => a + roles[r], 0);
+  if (!total) return null;
+  return (
+    <div className={`dh-rolebar${big ? ' big' : ''}`}>
+      <div className="dh-fl-stack" role="img" aria-label={t('Used space by importance')}>
+        {list.map((r) => <span key={r} className={`dh-rb-${r}`} style={{ width: `${Math.max(0.8, (roles[r] / total) * 100)}%` }} title={`${t(ROLE[r].label)}: ${fmtBytes(roles[r])}`} />)}
+      </div>
+      {onPick && (
+        <div className="dh-rolelegend">
+          {list.map((r) => {
+            const R = ROLE[r];
+            return (
+              <button type="button" key={r} className={`dh-fl-leg${value === r ? ' on' : ''}`} aria-pressed={value === r} onClick={() => onPick(value === r ? '' : r)} title={t(R.text)}>
+                <i className={`dh-rb-${r}`} aria-hidden="true" />
+                <span className="grow ellipsis">{t(R.label)}</span>
+                <span className="dh-fl-num">{fmtBytes(roles[r])}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /* ---------------- Leiste links: Belegung ---------------- */
@@ -110,20 +160,23 @@ function DriveBar({ d }) {
 function TypeBreakdown({ types, value, onPick }) {
   const list = TYPE_IDS.filter((k) => types[k] > 0).sort((a, b) => types[b] - types[a]);
   const total = list.reduce((a, k) => a + types[k], 0);
+  const [all, setAll] = useState(false);
   if (!total) return null;
+  const shown = all ? list : list.slice(0, 6);
   return (
     <div className="dh-fl-types">
       <div className="dh-fl-stack" role="img" aria-label={t('Used space by kind of file')}>
         {list.map((k) => <span key={k} className={`dh-ft-${k}`} style={{ width: `${Math.max(0.8, (types[k] / total) * 100)}%` }} title={`${t(TYPE[k].label)}: ${fmtBytes(types[k])}`} />)}
       </div>
       <div className="dh-fl-legend">
-        {list.map((k) => (
+        {shown.map((k) => (
           <button type="button" key={k} className={`dh-fl-leg${value === k ? ' on' : ''}`} aria-pressed={value === k} onClick={() => onPick(value === k ? '' : k)}>
             <i className={`dh-ft-${k}`} aria-hidden="true" />
             <span className="grow ellipsis">{t(TYPE[k].label)}</span>
             <span className="dh-fl-num">{fmtBytes(types[k])}</span>
           </button>
         ))}
+        {list.length > 6 && <button type="button" className="dh-fl-moregroups small" onClick={() => setAll(!all)}>{all ? t('Show fewer') : t('Show all {n}', { n: list.length })}</button>}
       </div>
     </div>
   );
@@ -141,7 +194,7 @@ function UsageCard({ sum, curG, type, onType, onRescan }) {
         <span className="grow">
           {sum.scanning ? t('Reading again …') : t('As of {when}', { when: fmtDate(sum.at) })}
           {' '}<InfoTip pop title={t('Which files?')}>{sum.mode === 'machine'
-            ? t('Every file on the fixed drives of this computer, sorted by who it belongs to: Hostwerk’s folders, programs and apps (the same name in Program Files, ProgramData and AppData counts as one), your personal folders, the system and other folders. Docker volumes only count under Used space. Read again every six hours and whenever you press the button.')
+            ? t('Every file on the fixed drives of this computer, sorted by who it belongs to: Hostwerk’s folders, games (Steam, Epic, GOG, Xbox …), programs and tools (names and publishers from Windows’ list of installed programs), your personal folders, the system and other folders. Read again every six hours and whenever you press the button; after a restart the last list is there at once.')
             : t('Every file in Hostwerk’s folders – the same ones as under Files. Switch on “Whole drives” in the settings of this extension to see the whole computer.')}</InfoTip>
         </span>
         <button type="button" className="btn ghost xs icon" title={t('Read again')} aria-label={t('Read again')} disabled={sum.scanning} onClick={onRescan}><RefreshCw size={13} className={sum.scanning ? 'spin' : undefined} /></button>
@@ -166,6 +219,7 @@ function GroupRow({ g, on, max, onPick }) {
       <span className="dh-fl-gmain">
         <span className="dh-fl-line">
           <span className="grow ellipsis">{gLabel(g)}{g.sub ? <span className="muted"> · {g.sub}</span> : null}</span>
+          {g.leftover && <PackageX size={12} className="c-warn" aria-label={t('No installed program found for this')} />}
           {g.lock && <Lock size={11} className="muted" aria-label={t('Protected')} />}
           <span className="dh-fl-num">{fmtBytes(g.bytes)}</span>
         </span>
@@ -182,7 +236,7 @@ function GroupNav({ groups, total, group, onPick }) {
   const f = filter.trim().toLowerCase();
   const by = new Map();
   for (const g of groups) {
-    if (f && !`${gLabel(g)} ${g.sub || ''} ${g.path || ''}`.toLowerCase().includes(f)) continue;
+    if (f && !`${gLabel(g)} ${g.sub || ''} ${g.path || ''} ${g.publisher || ''}`.toLowerCase().includes(f)) continue;
     const c = GROUP[g.cat] ? g.cat : 'other';
     if (!by.has(c)) by.set(c, []);
     by.get(c).push(g);
@@ -198,7 +252,7 @@ function GroupNav({ groups, total, group, onPick }) {
       {groups.length > 10 && (
         <label className="dh-fl-search dh-fl-gfilter">
           <Search size={14} aria-hidden="true" />
-          <input className="input" type="search" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={t('Find a program or folder …')} aria-label={t('Find a program or folder')} />
+          <input className="input" type="search" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={t('Find a program, game or folder …')} aria-label={t('Find a program, game or folder')} />
         </label>
       )}
       {CAT_ORDER.filter((c) => by.has(c)).map((c) => {
@@ -216,7 +270,7 @@ function GroupNav({ groups, total, group, onPick }) {
             <button type="button" className="dh-fl-cathead" aria-expanded={!collapsed} onClick={() => toggle(setShut, c)}>
               {collapsed ? <ChevronRight size={13} aria-hidden="true" /> : <ChevronDown size={13} aria-hidden="true" />}
               <CI size={13} aria-hidden="true" />
-              <span className="grow">{t(GROUP[c])}</span>
+              <span className="grow">{t(GROUP[c])} <span className="dh-fl-catn">{list.length}</span></span>
               <span className="dh-fl-num">{fmtBytes(sum)}</span>
             </button>
             {!collapsed && (
@@ -232,6 +286,103 @@ function GroupNav({ groups, total, group, onPick }) {
       })}
       {f && !by.size && <div className="small muted dh-fl-none">{t('Nothing found')}</div>}
     </nav>
+  );
+}
+
+/* ---------------- Übersicht ---------------- */
+
+function TopList({ title, icon: Icon, groups, onPick, empty, note }) {
+  if (!groups.length) return empty ? <div className="card dh-ov-card"><div className="dh-ov-title"><Icon size={15} aria-hidden="true" /><b>{title}</b></div><div className="small muted">{empty}</div></div> : null;
+  const max = Math.max(1, ...groups.map((g) => g.bytes));
+  return (
+    <div className="card dh-ov-card">
+      <div className="dh-ov-title"><Icon size={15} aria-hidden="true" /><b className="grow">{title}</b>{note && <span className="tiny muted">{note}</span>}</div>
+      <div className="dh-ov-list">
+        {groups.map((g) => (
+          <button type="button" key={g.id} className="dh-ov-row" onClick={() => onPick(g.id)} title={g.path || ''}>
+            <span className="dh-fl-gmain">
+              <span className="dh-fl-line">
+                <span className="grow ellipsis">{gLabel(g)}{g.publisher ? <span className="muted tiny"> · {g.publisher}</span> : null}</span>
+                <span className="dh-fl-num">{fmtBytes(g.bytes)}</span>
+              </span>
+              <span className="dh-fl-gbar" aria-hidden="true"><span style={{ width: `${Math.max(1.5, (g.bytes / max) * 100)}%` }} /></span>
+            </span>
+            <ChevronRight size={14} aria-hidden="true" className="muted" />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function BigFiles({ title, icon: Icon, query, byId, onAct, onMore, rev }) {
+  const d = useApi(`/disk-health/files/list?${query}`, [query, rev], { live: false });
+  const items = (d.data && d.data.items) || [];
+  return (
+    <div className="card dh-ov-card">
+      <div className="dh-ov-title"><Icon size={15} aria-hidden="true" /><b className="grow">{title}</b>
+        {d.data && items.length < d.data.total && <button type="button" className="btn ghost xs" onClick={onMore}>{t('All {n}', { n: fmtNumber(d.data.total) })}<ChevronRight size={12} aria-hidden="true" /></button>}
+      </div>
+      {!d.data ? <div className="skeleton dh-ov-skel" /> : items.length === 0 ? <div className="small muted">{t('Nothing here.')}</div> : (
+        <div className="dh-ov-list">
+          {items.map((x) => {
+            const T = TYPE[x.type] || TYPE.other;
+            const g = byId.get(x.group);
+            return (
+              <div key={x.path} className="dh-ov-file" onContextMenu={(e) => { e.preventDefault(); Kit.contextMenu(e, actionsFor(x, onAct)); }}>
+                <T.icon size={14} className={`dh-fi-${x.type}`} aria-hidden="true" />
+                <span className="grow dh-ov-fmain">
+                  <span className="ellipsis" title={x.path}>{x.name}</span>
+                  <span className="tiny muted ellipsis">{g ? gLabel(g) : ''} · {fmtDay(x.mtime)}</span>
+                </span>
+                <RoleBadge role={x.role} />
+                <span className="dh-fl-num small">{fmtBytes(x.size)}</span>
+                <button type="button" className="btn ghost xs icon" title={t('More')} aria-label={t('More')} onClick={(e) => Kit.contextMenu(e, actionsFor(x, onAct))}><MoreHorizontal size={14} /></button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Overview({ sum, byId, onPickGroup, onShow, onAct, rev }) {
+  const groups = sum.groups;
+  const roles = sum.totals.roles || {};
+  const canGo = sumRoles(roles, ['cache', 'trash']);
+  const top = (cat, n = 6) => groups.filter((g) => g.cat === cat).sort((a, b) => b.bytes - a.bytes).slice(0, n);
+  const leftovers = groups.filter((g) => g.leftover).sort((a, b) => b.bytes - a.bytes).slice(0, 6);
+  const leftBytes = groups.filter((g) => g.leftover).reduce((a, g) => a + g.bytes, 0);
+  const cacheTop = groups.filter((g) => (g.roles && g.roles.cache) > 0).map((g) => ({ ...g, bytes: g.roles.cache })).sort((a, b) => b.bytes - a.bytes).slice(0, 6);
+  return (
+    <div className="dh-ov">
+      <div className="card dh-ov-hero">
+        <div className="dh-ov-title"><LayoutDashboard size={15} aria-hidden="true" /><b className="grow">{t('What the space is used for')}</b>
+          <InfoTip pop title={t('How important are the files?')}>{t('Every file gets one of these: needed by Windows, part of a program or game, app data, cache and temporary files (can go), your own files, Hostwerk’s folders and the recycle bin. Click a part to list its files.')}</InfoTip>
+        </div>
+        <RoleBar roles={roles} big onPick={(r) => onShow({ role: r })} />
+      </div>
+
+      <div className="dh-ov-grid">
+        <div className="card dh-ov-card dh-ov-clean">
+          <div className="dh-ov-title"><Sparkles size={15} aria-hidden="true" /><b className="grow">{t('Can be freed')}</b></div>
+          <div className="dh-ov-big">{fmtBytes(canGo)}</div>
+          <div className="dh-ov-split">
+            <button type="button" className="dh-ov-pill" onClick={() => onShow({ role: 'cache' })}><Eraser size={14} aria-hidden="true" /><span className="grow">{t('Caches & temporary files')}</span><b className="dh-fl-num">{fmtBytes(roles.cache || 0)}</b><ChevronRight size={13} aria-hidden="true" /></button>
+            <a className="dh-ov-pill" href="#/system/speicher/bin"><Recycle size={14} aria-hidden="true" /><span className="grow">{t('Windows recycle bin')}</span><b className="dh-fl-num">{fmtBytes(roles.trash || 0)}</b><ChevronRight size={13} aria-hidden="true" /></a>
+          </div>
+          {leftBytes > 0 && <button type="button" className="dh-ov-pill dh-ov-maybe" onClick={() => leftovers[0] && onPickGroup(leftovers[0].id)}><PackageX size={14} aria-hidden="true" /><span className="grow">{t('Possibly left over from removed programs')}</span><b className="dh-fl-num">{fmtBytes(leftBytes)}</b></button>}
+        </div>
+        <TopList title={t('Biggest caches')} icon={Eraser} groups={cacheTop} onPick={(id) => onShow({ role: 'cache', group: id })} note={t('safe to delete')} />
+        <TopList title={t('Biggest games')} icon={Gamepad2} groups={top('games')} onPick={onPickGroup} empty={sum.mode === 'machine' ? t('No games found (Steam, Epic, GOG, Xbox, Riot, Ubisoft, EA).') : null} />
+        <TopList title={t('Biggest programs & tools')} icon={AppWindow} groups={top('apps')} onPick={onPickGroup} />
+        <TopList title={t('Personal folders')} icon={UserRound} groups={top('personal')} onPick={onPickGroup} />
+        {leftovers.length > 0 && <TopList title={t('No installed program found')} icon={PackageX} groups={leftovers} onPick={onPickGroup} note={t('check before deleting')} />}
+        <BigFiles title={t('Biggest files')} icon={Files} query="sort=size&order=desc&limit=8" byId={byId} onAct={onAct} onMore={() => onShow({})} rev={rev} />
+        <BigFiles title={t('Big and untouched for a year')} icon={Clock} query="sort=size&order=desc&limit=8&olderThan=365&minSize=104857600&role=user,data,cache" byId={byId} onAct={onAct} onMore={() => onShow({ age: 'old1', size: 's100', role: 'user' })} rev={rev} />
+      </div>
+    </div>
   );
 }
 
@@ -268,6 +419,7 @@ function Row({ x, g, picked, onPick, onAct, showGroup = true }) {
         <span className="tiny muted ellipsis dh-fl-dir" title={x.dir}>{shortPath(x.dir)}</span>
       </td>
       {showGroup && <td className="dh-fl-app small"><span className="ellipsis" title={g ? g.path || '' : ''}>{g ? gLabel(g) : '–'}</span></td>}
+      <td className="dh-fl-rolecol"><RoleBadge role={x.role} /></td>
       <td className="num dh-fl-size">{fmtBytes(x.size)}</td>
       <td className="small muted dh-fl-date" title={fmtDate(x.mtime)}>{fmtDay(x.mtime)}</td>
       <td className="dh-fl-acts">
@@ -292,11 +444,12 @@ function SortHead({ id, label, sort, onSort, className }) {
   );
 }
 
-function FileTable({ res, byId, picked, onPick, onPickAll, allOnPage, onAct, sort, onSort, more, onMore, showGroup }) {
+function FileTable({ res, byId, picked, onPick, onPickAll, allOnPage, onAct, sort, onSort, more, onMore, showGroup, loading }) {
   return (
-    <div className="card dh-fl-listcard">
+    <div className={`card dh-fl-listcard${loading ? ' dh-fl-loading' : ''}`}>
       <div className="dh-fl-listhead small">
         <span className="grow">{pl(res.total, '{n} file · {size}', '{n} files · {size}', { n: fmtNumber(res.total), size: fmtBytes(res.bytes) })}</span>
+        {res.facets && <RoleBar roles={res.facets.roles} />}
       </div>
       {res.items.length ? (
         <div className="table-wrap">
@@ -306,6 +459,7 @@ function FileTable({ res, byId, picked, onPick, onPickAll, allOnPage, onAct, sor
                 <th scope="col" className="dh-fl-check"><input type="checkbox" className="bulk-check" checked={allOnPage} onChange={onPickAll} aria-label={t('Select all shown files')} /></th>
                 <SortHead id="name" label={t('Name')} sort={sort} onSort={onSort} />
                 {showGroup && <SortHead id="group" label={t('Belongs to')} sort={sort} onSort={onSort} className="dh-fl-app" />}
+                <SortHead id="role" label={t('Importance')} sort={sort} onSort={onSort} className="dh-fl-rolecol" />
                 <SortHead id="size" label={t('Size')} sort={sort} onSort={onSort} className="num dh-fl-size" />
                 <SortHead id="mtime" label={t('Changed')} sort={sort} onSort={onSort} className="dh-fl-date" />
                 <th scope="col" className="dh-fl-acts"><span className="sr-only">{t('Actions')}</span></th>
@@ -360,7 +514,7 @@ function FolderView({ group, curG, dir, setDir, onList, onRevealDir, rev }) {
               <button type="button" className="dh-fl-node" onClick={() => (k.kids ? setDir(k.path) : onList(k.path))} title={k.path}>
                 <Folder size={15} aria-hidden="true" className="dh-fl-nico" />
                 <span className="dh-fl-nmain">
-                  <span className="dh-fl-line"><span className="grow ellipsis">{k.name}</span><span className="tiny muted">{pl(k.files, '{n} file', '{n} files', { n: fmtNumber(k.files) })}</span><span className="dh-fl-num dh-fl-nsize">{fmtBytes(k.bytes)}</span></span>
+                  <span className="dh-fl-line"><span className="grow ellipsis">{k.name}</span><RoleBadge role={k.role} /><span className="tiny muted">{pl(k.files, '{n} file', '{n} files', { n: fmtNumber(k.files) })}</span><span className="dh-fl-num dh-fl-nsize">{fmtBytes(k.bytes)}</span></span>
                   {!dir && k.path !== k.name && <span className="tiny muted ellipsis">{shortPath(k.path, 80)}</span>}
                   <span className="dh-fl-gbar" aria-hidden="true"><span style={{ width: `${Math.max(0.8, (k.bytes / max) * 100)}%` }} /></span>
                 </span>
@@ -415,7 +569,7 @@ function Duplicates({ byId, group, curG, picked, onPick, onAct, setPicked, rev }
                 : t('Find identical files')}
           </b>
           <div className="small muted">
-            {x.at ? t('Checked {when} · files from 1 MB, compared by their content', { when: fmtDate(x.at) }) : t('Compares files from 1 MB by their content – this can take a while on big drives. Windows’ own files are left out.')}
+            {x.at ? t('Checked {when} · files from 1 MB, compared by their content', { when: fmtDate(x.at) }) : t('Compares your own files and app data from 1 MB by their content – Windows and installed programs are left out. This can take a while on big drives.')}
             {scope ? ` · ${t('only in {name}', { name: scope })}` : ''}
             {x.stale ? ` · ${t('the list of files changed since')}` : ''}
           </div>
@@ -436,6 +590,40 @@ function Duplicates({ byId, group, curG, picked, onPick, onAct, setPicked, rev }
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+/* ---------------- Gewählte Gruppe ---------------- */
+
+function ScopeCard({ g, onClose, onUninstall, onTree, onShowRole }) {
+  const Icon = KIND_ICON[g.kind] || Server;
+  const canUninstall = g.cat === 'games' ? !!g.appId : g.cat === 'apps' && g.installed;
+  return (
+    <div className="card dh-fl-scope">
+      <div className="dh-fl-line dh-fl-scopetop">
+        <span className="dh-fl-scopeico"><Icon size={18} aria-hidden="true" /></span>
+        <div className="grow dh-fl-scopemain">
+          <b className="ellipsis">{gLabel(g)}{g.sub ? <span className="muted"> · {g.sub}</span> : null}</b>
+          <span className="small muted">
+            {fmtBytes(g.bytes)} · {pl(g.files, '{n} file', '{n} files', { n: fmtNumber(g.files) })}
+            {g.places > 1 ? ` · ${t('in {n} places', { n: g.places })}` : g.path ? ` · ${shortPath(g.path, 70)}` : ''}
+          </span>
+        </div>
+        <button type="button" className="btn ghost xs icon" title={t('Show all files')} aria-label={t('Show all files')} onClick={onClose}><X size={14} /></button>
+      </div>
+      <div className="dh-fl-facts">
+        {g.publisher && <span className="dh-fact"><BadgeCheck size={12} aria-hidden="true" />{g.publisher}{g.version ? ` · ${g.version}` : ''}</span>}
+        {g.via && <span className="dh-fact"><Gamepad2 size={12} aria-hidden="true" />{t('via {launcher}', { launcher: g.via })}</span>}
+        {g.installed && g.cat !== 'hostwerk' && <span className="dh-fact ok"><BadgeCheck size={12} aria-hidden="true" />{t('Installed')}</span>}
+        {g.leftover && <span className="dh-fact warn" title={t('Windows lists no installed program with this name. It may be left over from a program you removed – or belong to a tool that does not register itself. Check before deleting.')}><PackageX size={12} aria-hidden="true" />{t('No installed program found')}</span>}
+        {g.lock && <span className="dh-fact"><Lock size={12} aria-hidden="true" />{t(REASON[g.lock])}</span>}
+      </div>
+      {g.roles && <RoleBar roles={g.roles} onPick={onShowRole} />}
+      <div className="dh-fl-scopeacts">
+        <Btn className="sm ghost" icon={FolderTree} onClick={onTree}>Show folders</Btn>
+        {canUninstall && <Btn className="sm ghost" icon={Trash2} onClick={onUninstall} title={g.cat === 'games' ? t('Opens Steam to uninstall the game') : t('Opens Windows’ list of apps')}>{g.cat === 'games' ? t('Uninstall in Steam') : t('Uninstall …')}</Btn>}
+      </div>
     </div>
   );
 }
@@ -470,18 +658,22 @@ export function FilesPanel() {
   const [group, setGroup] = useState('');
   const [dir, setDir] = useState(null); // Liste: nur dieser Ordner (samt Unterordnern)
   const [tdir, setTdir] = useState(null); // Ordnerbaum: offener Ordner
-  const [view, setView] = useState('list');
+  const [view, setView] = useState('overview');
   const [type, setType] = useState('');
-  const [preset, setPreset] = useState('all');
+  const [role, setRole] = useState('');
+  const [size, setSize] = useState('any');
+  const [age, setAge] = useState('any');
   const [q, setQ] = useState('');
   const [qd, setQd] = useState('');
   const [sort, setSort] = useState({ by: 'size', order: 'desc' });
   const [res, setRes] = useState(null);
+  const [loading, setLoading] = useState(false);
   const [more, setMore] = useState(false);
   const [picked, setPicked] = useState(() => new Map());
   const [busy, setBusy] = useState(false);
   const [rev, setRev] = useState(0);
   const searchRef = useRef(null);
+  const seq = useRef(0);
 
   // Während Hostwerk einliest: alle paar Sekunden nachsehen
   useEffect(() => {
@@ -506,17 +698,20 @@ export function FilesPanel() {
     if (group) p.set('group', group);
     if (dir) p.set('dir', dir);
     if (type) p.set('type', type);
+    if (role) p.set('role', role);
     if (qd) p.set('q', qd);
-    for (const [k, v] of Object.entries(PRESET[preset] || {})) p.set(k, String(v));
+    for (const [k, v] of Object.entries({ ...(SIZE[size] || {}), ...(AGE[age] || {}) })) p.set(k, String(v));
     return p.toString();
-  }, [group, dir, type, qd, sort, preset]);
+  }, [group, dir, type, role, qd, sort, size, age]);
   const load = async (append = false) => {
-    if (append) setMore(true);
+    const my = ++seq.current; // nur die letzte Abfrage zählt (schnelles Tippen)
+    if (append) setMore(true); else setLoading(true);
     try {
-      const r = await get(`/disk-health/files/list?${query}&offset=${append && res ? res.items.length : 0}`);
-      setRes((prev) => (append && prev ? { ...r, items: [...prev.items, ...r.items] } : r));
-    } catch (e) { toast.error(errText(e)); }
-    setMore(false);
+      const r = await get(`/disk-health/files/list?${query}&offset=${append && res ? res.items.length : 0}${append ? '' : '&facets=1'}`);
+      if (my !== seq.current) return;
+      setRes((prev) => (append && prev ? { ...r, facets: prev.facets, items: [...prev.items, ...r.items] } : r));
+    } catch (e) { if (my === seq.current) toast.error(errText(e)); }
+    if (my === seq.current) { setMore(false); setLoading(false); }
   };
   useEffect(() => { if (view === 'list' && sum && sum.at) load(false); }, [query, view, sum && sum.at]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -532,23 +727,23 @@ export function FilesPanel() {
   const remove = async (list0) => {
     const list = list0.filter((x) => !x.lock);
     if (!list.length) return;
-    const size = list.reduce((a, x) => a + x.size, 0);
+    const bytes = list.reduce((a, x) => a + x.size, 0);
     const inHw = list.filter((x) => x.root).length;
-    const appData = list.some((x) => { const g = byId.get(x.group); return g && g.cat === 'apps'; });
+    const careful = list.filter((x) => x.role === 'data' || x.role === 'program').length;
     const where = inHw === list.length
       ? t('Hostwerk keeps them in its bin for 30 days – you can restore them under Files → Bin.')
       : inHw ? t('Files in Hostwerk’s folders go to Hostwerk’s bin (Files → Bin), all others to the Windows recycle bin.')
         : t('They go to the Windows recycle bin – you can restore them from there.');
     const ok = await confirmDialog({
       title: list.length === 1 ? t('Delete “{name}”?', { name: list[0].name }) : t('Delete {n} files?', { n: fmtNumber(list.length) }),
-      text: `${t('{size} in total.', { size: fmtBytes(size) })} ${where}${appData ? ` ${t('Some of them belong to a program – it may need them or create them again.')}` : ''}`,
+      text: `${t('{size} in total.', { size: fmtBytes(bytes) })} ${where}${careful ? ` ${pl(careful, '{n} of them is app data – the app may need it.', '{n} of them are app data – the app may need them.', { n: fmtNumber(careful) })}` : ''}`,
       confirm: t('Delete'), danger: true,
     });
     if (!ok) return;
     setBusy(true);
     try {
       const r = await post('/disk-health/files/delete', { items: list.map((x) => ({ path: x.path })) });
-      if (r.done) toast.success(pl(r.done, '{n} file deleted', '{n} files deleted', { n: fmtNumber(r.done) }));
+      if (r.done) toast.success(`${pl(r.done, '{n} file deleted', '{n} files deleted', { n: fmtNumber(r.done) })} · ${fmtBytes(r.bytes || 0)}`);
       if (r.failed && r.failed.length) toast.error(`${t('{n} could not be deleted', { n: r.failed.length })}: ${errText(r.failed[0].error)}`);
       const failed = new Set((r.failed || []).map((f) => f.path));
       setPicked((m) => { const n = new Map(m); for (const x of list) if (!failed.has(keyOf(x))) n.delete(keyOf(x)); return n; });
@@ -578,48 +773,47 @@ export function FilesPanel() {
   const rescan = async () => { try { s.setData(await post('/disk-health/files/rescan')); } catch (e) { toast.error(errText(e)); } };
   const exportCsv = () => { location.href = apiUrl(`/api/disk-health/files/export?${query}`); };
   const pickGroup = (id) => { setGroup(id); setDir(null); setTdir(null); };
+  /** Aus der Übersicht: Liste mit diesen Filtern. */
+  const show = (f) => {
+    setGroup(f.group || ''); setDir(null); setRole(f.role || ''); setType(f.type || ''); setSize(f.size || 'any'); setAge(f.age || 'any'); setQ('');
+    setSort({ by: 'size', order: 'desc' }); setView('list');
+  };
+  const clearFilters = () => { setDir(null); setType(''); setRole(''); setSize('any'); setAge('any'); setQ(''); };
+  const uninstall = async (g) => {
+    const uri = g.cat === 'games' && g.appId ? `steam://uninstall/${g.appId}` : 'ms-settings:appsfeatures';
+    try { await post('/disk-health/files/open', { uri }); } catch (e) { toast.error(errText(e)); }
+  };
 
   if (s.error && !sum) return <Callout kind="err" dismissible={false} title={t('The files could not be loaded')}>{errText(s.error)} <Btn className="sm" icon={RefreshCw} onClick={() => s.reload()}>Try again</Btn></Callout>;
   if (!sum) return <Loading />;
   if (!sum.at) {
     return sum.scanning
       ? <ScanProgress p={sum.progress} first />
-      : <div className="card dh-fl-pad"><Empty icon={Files} title="No list of files yet" text="Hostwerk reads every file on the drives once – sorted by program, service and folder. On a full drive this takes a few minutes." action={<Btn className="primary" icon={RefreshCw} onClick={rescan}>Read the files</Btn>} /></div>;
+      : <div className="card dh-fl-pad"><Empty icon={Files} title="No list of files yet" text="Hostwerk reads every file on the drives once – sorted by program, game, service and folder. On a full drive this takes a few minutes." action={<Btn className="primary" icon={RefreshCw} onClick={rescan}>Read the files</Btn>} /></div>;
   }
   const curG = group ? byId.get(group) : null;
   const pickedList = [...picked.values()];
   const pickedBytes = pickedList.reduce((a, x) => a + x.size, 0);
-  const filtered = !!(type || qd || dir || preset !== 'all');
-  const GIcon = curG ? KIND_ICON[curG.kind] || Server : null;
-  const presetLabel = { big: t('Over 100 MB'), old: t('Untouched for a year'), recent: t('Changed in the last 7 days') };
+  const filtered = !!(type || role || qd || dir || size !== 'any' || age !== 'any');
+  const sizeLabel = { s10: t('Over 10 MB'), s100: t('Over 100 MB'), s1g: t('Over 1 GB') };
+  const ageLabel = { old1: t('Untouched for a year'), old2: t('Untouched for two years'), new7: t('Changed in the last 7 days'), new30: t('Changed in the last 30 days') };
+  const facets = res && res.facets;
   return (
     <div className="dh-fl-wrap">
     <div className="dh-fl">
       <aside className="dh-fl-side">
-        <UsageCard sum={sum} curG={curG} type={type} onType={(k) => { setType(k); if (view !== 'list') setView('list'); }} onRescan={rescan} />
+        <UsageCard sum={sum} curG={curG} type={type} onType={(k) => { setType(k); setView('list'); }} onRescan={rescan} />
         <GroupNav groups={groups} total={sum.totals.bytes} group={group} onPick={pickGroup} />
       </aside>
 
       <div className="dh-fl-main">
         {sum.scanning && <ScanProgress p={sum.progress} />}
 
-        {curG && (
-          <div className="card dh-fl-scope">
-            <span className="dh-fl-scopeico"><GIcon size={18} aria-hidden="true" /></span>
-            <div className="grow dh-fl-scopemain">
-              <b className="ellipsis">{gLabel(curG)}{curG.sub ? <span className="muted"> · {curG.sub}</span> : null}</b>
-              <span className="small muted">
-                {fmtBytes(curG.bytes)} · {pl(curG.files, '{n} file', '{n} files', { n: fmtNumber(curG.files) })}
-                {curG.places > 1 ? ` · ${t('in {n} places', { n: curG.places })}` : curG.path ? ` · ${shortPath(curG.path, 70)}` : ''}
-              </span>
-              {curG.lock && <span className="tiny muted dh-fl-line"><Lock size={10} aria-hidden="true" />{t(REASON[curG.lock])}</span>}
-            </div>
-            <button type="button" className="btn ghost xs icon" title={t('Show all files')} aria-label={t('Show all files')} onClick={() => pickGroup('')}><X size={14} /></button>
-          </div>
-        )}
+        {curG && <ScopeCard g={curG} onClose={() => pickGroup('')} onUninstall={() => uninstall(curG)} onTree={() => { setTdir(null); setView('tree'); }} onShowRole={(r) => { setRole(r); setView('list'); }} />}
 
         <div className="dh-fl-toolbar">
           <Seg value={view} onChange={setView} options={[
+            { id: 'overview', label: t('Overview'), icon: LayoutDashboard },
             { id: 'list', label: t('Files'), icon: List },
             { id: 'tree', label: t('Folders'), icon: FolderTree },
             { id: 'dups', label: t('Duplicates'), icon: CopyCheck },
@@ -628,17 +822,28 @@ export function FilesPanel() {
             <div className="dh-fl-filters">
               <label className="dh-fl-search">
                 <Search size={15} aria-hidden="true" />
-                <input ref={searchRef} className="input" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('Search name or folder …')} aria-label={t('Search files')} title={t('Shortcut: /')} />
+                <input ref={searchRef} className="input" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('Search – e.g. “setup .exe 100mb+”')} aria-label={t('Search files')} title={t('Words search name and folder; .iso finds an ending; 500mb+ or 1gb- filters by size (over or under). Shortcut: /')} />
               </label>
+              <select className="select dh-fl-select" value={role} onChange={(e) => setRole(e.target.value)} aria-label={t('Importance')}>
+                <option value="">{t('Any importance')}</option>
+                {ROLE_IDS.map((r) => <option key={r} value={r}>{t(ROLE[r].label)}{facets && facets.roles && facets.roles[r] && !role ? ` · ${fmtBytes(facets.roles[r])}` : ''}</option>)}
+              </select>
               <select className="select dh-fl-select" value={type} onChange={(e) => setType(e.target.value)} aria-label={t('Kind of file')}>
                 <option value="">{t('All kinds')}</option>
-                {TYPE_IDS.map((k) => <option key={k} value={k}>{t(TYPE[k].label)}</option>)}
+                {TYPE_IDS.map((k) => <option key={k} value={k}>{t(TYPE[k].label)}{facets && facets.types && facets.types[k] && !type ? ` · ${fmtBytes(facets.types[k])}` : ''}</option>)}
               </select>
-              <select className="select dh-fl-select" value={preset} onChange={(e) => setPreset(e.target.value)} aria-label={t('Size and age')}>
-                <option value="all">{t('Any size and age')}</option>
-                <option value="big">{t('Over 100 MB')}</option>
-                <option value="old">{t('Untouched for a year')}</option>
-                <option value="recent">{t('Changed in the last 7 days')}</option>
+              <select className="select dh-fl-select" value={size} onChange={(e) => setSize(e.target.value)} aria-label={t('Size')}>
+                <option value="any">{t('Any size')}</option>
+                <option value="s10">{t('Over 10 MB')}</option>
+                <option value="s100">{t('Over 100 MB')}</option>
+                <option value="s1g">{t('Over 1 GB')}</option>
+              </select>
+              <select className="select dh-fl-select" value={age} onChange={(e) => setAge(e.target.value)} aria-label={t('Age')}>
+                <option value="any">{t('Any age')}</option>
+                <option value="old1">{t('Untouched for a year')}</option>
+                <option value="old2">{t('Untouched for two years')}</option>
+                <option value="new7">{t('Changed in the last 7 days')}</option>
+                <option value="new30">{t('Changed in the last 30 days')}</option>
               </select>
               <button type="button" className="btn ghost sm icon" title={t('Export the list (CSV)')} aria-label={t('Export the list (CSV)')} onClick={exportCsv}><FileDown size={15} /></button>
             </div>
@@ -648,12 +853,15 @@ export function FilesPanel() {
         {view === 'list' && filtered && (
           <div className="dh-fl-chips">
             {dir && <button type="button" className="chip" onClick={() => setDir(null)} title={dir}><FolderTree size={12} aria-hidden="true" />{shortPath(dir, 48)}<X size={12} aria-label={t('Remove filter')} /></button>}
+            {role && <button type="button" className="chip" onClick={() => setRole('')}><i className={`dh-chipdot dh-rb-${role}`} aria-hidden="true" />{t(ROLE[role].label)}<X size={12} aria-label={t('Remove filter')} /></button>}
             {type && <button type="button" className="chip" onClick={() => setType('')}>{t(TYPE[type].label)}<X size={12} aria-label={t('Remove filter')} /></button>}
-            {preset !== 'all' && <button type="button" className="chip" onClick={() => setPreset('all')}>{presetLabel[preset]}<X size={12} aria-label={t('Remove filter')} /></button>}
+            {size !== 'any' && <button type="button" className="chip" onClick={() => setSize('any')}>{sizeLabel[size]}<X size={12} aria-label={t('Remove filter')} /></button>}
+            {age !== 'any' && <button type="button" className="chip" onClick={() => setAge('any')}>{ageLabel[age]}<X size={12} aria-label={t('Remove filter')} /></button>}
             {qd && <button type="button" className="chip" onClick={() => setQ('')}>{`“${qd}”`}<X size={12} aria-label={t('Remove filter')} /></button>}
-            <button type="button" className="chip chip-clear" onClick={() => { setDir(null); setType(''); setPreset('all'); setQ(''); }}>{t('Clear all')}</button>
+            <button type="button" className="chip chip-clear" onClick={clearFilters}>{t('Clear all')}</button>
           </div>
         )}
+        {view === 'list' && role && ROLE[role] && <div className={`dh-rolehint dh-rolehint-${role} small`}><Info size={13} aria-hidden="true" />{t(ROLE[role].text)}</div>}
 
         {pickedList.length > 0 && (
           <div className="bulk-bar dh-fl-bulk" role="region" aria-label={t('Selection')}>
@@ -666,15 +874,30 @@ export function FilesPanel() {
           </div>
         )}
 
-        {view === 'dups' ? (
+        {view === 'overview' ? (
+          curG ? <GroupOverview g={curG} byId={byId} onAct={act} rev={rev} onShow={(f) => show({ ...f, group: curG.id })} />
+            : <Overview sum={sum} byId={byId} onPickGroup={pickGroup} onShow={show} onAct={act} rev={rev} />
+        ) : view === 'dups' ? (
           <Duplicates byId={byId} group={group} curG={curG} picked={picked} onPick={pick} onAct={act} setPicked={setPicked} rev={rev} />
         ) : view === 'tree' ? (
           <FolderView group={group} curG={curG} dir={tdir} setDir={setTdir} onList={listIn} onRevealDir={(p) => reveal(p, true)} rev={rev} />
         ) : !res ? <Loading /> : (
-          <FileTable res={res} byId={byId} picked={picked} onPick={pick} onPickAll={pickAll} allOnPage={allOnPage} onAct={act} sort={sort} onSort={setSort} more={more} onMore={() => load(true)} showGroup={!curG} />
+          <FileTable res={res} byId={byId} picked={picked} onPick={pick} onPickAll={pickAll} allOnPage={allOnPage} onAct={act} sort={sort} onSort={setSort} more={more} onMore={() => load(true)} showGroup={!curG} loading={loading} />
         )}
       </div>
     </div>
+    </div>
+  );
+}
+
+/** Übersicht einer gewählten Gruppe: größte Dateien, Zwischenspeicher darin. */
+function GroupOverview({ g, byId, onAct, rev, onShow }) {
+  const id = encodeURIComponent(g.id);
+  return (
+    <div className="dh-ov-grid">
+      <BigFiles title={t('Biggest files')} icon={Files} query={`group=${id}&sort=size&order=desc&limit=8`} byId={byId} onAct={onAct} onMore={() => onShow({})} rev={rev} />
+      {g.roles && g.roles.cache > 0 && <BigFiles title={t('Can be freed')} icon={Eraser} query={`group=${id}&role=cache&sort=size&order=desc&limit=8`} byId={byId} onAct={onAct} onMore={() => onShow({ role: 'cache' })} rev={rev} />}
+      <BigFiles title={t('Changed in the last 7 days')} icon={Clock} query={`group=${id}&sort=mtime&order=desc&limit=8&newerThan=7`} byId={byId} onAct={onAct} onMore={() => onShow({ age: 'new7' })} rev={rev} />
     </div>
   );
 }

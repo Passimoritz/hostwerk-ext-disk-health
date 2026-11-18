@@ -1,7 +1,7 @@
 import { useEffect, useId, useState } from 'react';
 import {
   Activity, HardDrive, RefreshCw, Thermometer, Clock, Copy, AlertTriangle, CheckCircle2, HelpCircle, XCircle, ShieldCheck, ChevronDown,
-  Hourglass, Bell, Download, Usb, Wrench, Database, Files,
+  Hourglass, Bell, Download, Usb, Wrench, Database, Files, Trash2, PieChart,
 } from 'lucide-react';
 import { post, useApi, fmtBytes, fmtDate, fmtNumber } from '@hostwerk/api';
 import { Btn, Empty, Loading, Callout, InfoTip, TileEmpty, Sparkline, Switch, Seg, toast, confirmDialog } from '@hostwerk/ui';
@@ -10,6 +10,7 @@ import { t, pl as hostPl } from '@hostwerk/i18n';
 import { describe, COUNTER_LABEL, ATTR_LABEL, ATTR_INFO } from '../../server/texts';
 import { UsagePanel, UsageLine } from './usage';
 import { FilesPanel } from './files';
+import { BinPanel } from './bin';
 import './style.css';
 
 /*
@@ -500,19 +501,40 @@ function DiskHealthTile() {
   );
 }
 
-/** Die ganze Seite als Abschnitt: wie beim Reiter ohne eigenen Titelblock (.ext-embedded), die Knöpfe bleiben. */
-function DrivesSection() {
-  return <div className="ext-embedded"><DrivesPage /></div>;
+/** 2.4: Abschnitt „Zustand“ – nur der Zustand (S.M.A.R.T.); ist er in den Einstellungen aus, ein Hinweis darauf. */
+function ConditionSection() {
+  const st = useApi('/disk-health', [], { live: false });
+  if (st.data && st.data.smart === false) {
+    return <div className="dh-page"><Callout kind="info" dismissible={false} title={t('Checking the drive condition is switched off')}>{t('Switch on “Check the drive condition (S.M.A.R.T.)” in the settings of this extension to see temperature, wear and errors.')}</Callout></div>;
+  }
+  return <div className="dh-page"><HealthPanel /></div>;
 }
 
-/** 2.2: alle Dateien nach Dienst – eigener Abschnitt neben „Laufwerke“. */
+/** 2.4: Abschnitt „Belegung“ – wie voll die Laufwerke sind, wer den Platz belegt, Verlauf (bis 2.3 ein Teil von „Laufwerke“). */
+function UsageSection() {
+  return <div className="dh-page"><UsagePanel /></div>;
+}
+
+/** 2.2: alle Dateien – eigener Abschnitt. */
 function FilesSection() {
   return <div className="dh-page"><FilesPanel /></div>;
 }
 
+/** 2.4: Abschnitt „Papierkorb“ – der Windows-Papierkorb. */
+function BinSection() {
+  return <div className="dh-page"><BinPanel /></div>;
+}
+
+/*
+ * Abschnitte unter System → Speicher (links in der Reihenfolge von order: Zustand, Belegung, Dateien, Papierkorb).
+ * Hostwerk vor der Kern-Fassung mit bis zu sechs Abschnitten je Erweiterung zeigt nur die ersten zwei dieser Liste –
+ * darum stehen Zustand und Dateien vorn; die ganze Seite (Erweiterungen → Öffnen) hat weiter Zustand und Belegung.
+ */
 const SECTIONS = [
-  { id: 'drives', title: 'Drives', icon: HardDrive, Component: DrivesSection, order: 40 },
-  { id: 'files', title: 'Files', icon: Files, Component: FilesSection, order: 41 },
+  { id: 'drives', title: 'Condition', icon: Activity, Component: ConditionSection, order: 40 },
+  { id: 'files', title: 'Files', icon: Files, Component: FilesSection, order: 42 },
+  { id: 'usage', title: 'Used space', icon: PieChart, Component: UsageSection, order: 41 },
+  { id: 'bin', title: 'Recycle bin', icon: Trash2, Component: BinSection, order: 43 },
 ];
 
 export default {

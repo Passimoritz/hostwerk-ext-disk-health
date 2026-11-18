@@ -181,7 +181,7 @@
 
 /* Wem die Dateien gehören */
 .dh-fl-groups { padding: var(--sp-2); gap: var(--sp-1); }
-.dh-fl-gfilter { margin: var(--sp-1) var(--sp-1) var(--sp-2); }
+.dh-fl-groups .dh-fl-gfilter { flex: none; margin: var(--sp-1) var(--sp-1) var(--sp-2); }
 .dh-fl-grow { display: flex; align-items: flex-start; gap: var(--sp-2); width: 100%; text-align: left; border: 0; background: none; color: inherit; font: inherit; font-size: var(--fs-sm); padding: var(--sp-2); border-radius: var(--r-sm); cursor: pointer; }
 .dh-fl-grow:hover { background: var(--surface-2); }
 .dh-fl-grow.on { background: var(--accent-soft); }
@@ -203,7 +203,70 @@
 .dh-fl-node:focus-visible, .dh-fl-crumb:focus-visible { outline: 2px solid var(--accent-ring, var(--accent)); outline-offset: 1px; }
 
 /* Rechte Seite: gewählte Gruppe, Werkzeugleiste, Filter */
-.dh-fl-scope { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); }
+.dh-fl-scope { display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); }
+.dh-fl-scopetop { gap: var(--sp-3); }
+.dh-fl-facts { display: flex; flex-wrap: wrap; gap: var(--sp-1) var(--sp-2); }
+.dh-fl-facts:empty { display: none; }
+.dh-fact { display: inline-flex; align-items: center; gap: var(--sp-1); font-size: var(--fs-xs, .78rem); color: var(--text-2); background: var(--surface-2); border-radius: var(--r-xl); padding: 2px var(--sp-2); }
+.dh-fact.ok { color: var(--ok-text, var(--ok)); background: color-mix(in srgb, var(--ok) 14%, transparent); }
+.dh-fact.warn { color: var(--warn-text, var(--warn)); background: color-mix(in srgb, var(--warn) 16%, transparent); }
+.dh-fl-scopeacts { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+
+/* 2.4: Wichtigkeit (nötig, Programm, App-Daten, kann weg, eigene Datei, Hostwerk, Papierkorb) */
+.dh-rb-system { --dh-rb: var(--err); }
+.dh-rb-program { --dh-rb: var(--accent); }
+.dh-rb-data { --dh-rb: var(--info); }
+.dh-rb-cache { --dh-rb: var(--ok); }
+.dh-rb-user { --dh-rb: var(--warn); }
+.dh-rb-hostwerk { --dh-rb: var(--accent-2); }
+.dh-rb-trash { --dh-rb: color-mix(in srgb, var(--muted) 70%, var(--surface-3)); }
+.dh-rolebar { display: flex; flex-direction: column; gap: var(--sp-2); min-width: 0; }
+.dh-rolebar .dh-fl-stack span { background: var(--dh-rb); }
+.dh-rolebar.big .dh-fl-stack { height: var(--sp-3); }
+.dh-fl-listhead .dh-rolebar { flex: 0 1 220px; }
+.dh-rolelegend { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1px var(--sp-2); margin: 0 calc(var(--sp-2) * -1); }
+.dh-rolelegend .dh-fl-leg i, .dh-chipdot { background: var(--dh-rb); }
+.dh-chipdot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; }
+.dh-role { display: inline-flex; align-items: center; gap: 3px; font-size: var(--fs-xs, .74rem); line-height: 1.5; padding: 0 var(--sp-2) 0 6px; border-radius: var(--r-xl); white-space: nowrap; color: var(--text-2); background: color-mix(in srgb, var(--dh-rb) 14%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--dh-rb) 28%, transparent); }
+.dh-role svg { color: var(--dh-rb); flex: none; }
+.dh-role-system { --dh-rb: var(--err); } .dh-role-program { --dh-rb: var(--accent); } .dh-role-data { --dh-rb: var(--info); }
+.dh-role-cache { --dh-rb: var(--ok); } .dh-role-user { --dh-rb: var(--warn); } .dh-role-hostwerk { --dh-rb: var(--accent-2); } .dh-role-trash { --dh-rb: var(--muted); }
+.dh-rolehint { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-radius: var(--r-sm); background: color-mix(in srgb, var(--dh-rb, var(--accent)) 10%, transparent); color: var(--text-2); }
+.dh-rolehint-system { --dh-rb: var(--err); } .dh-rolehint-program { --dh-rb: var(--accent); } .dh-rolehint-data { --dh-rb: var(--info); }
+.dh-rolehint-cache { --dh-rb: var(--ok); } .dh-rolehint-user { --dh-rb: var(--warn); } .dh-rolehint-hostwerk { --dh-rb: var(--accent-2); } .dh-rolehint-trash { --dh-rb: var(--muted); }
+.dh-fl-rolecol { width: 112px; }
+.dh-fl-catn { font-weight: 500; letter-spacing: 0; opacity: .7; margin-left: 2px; }
+.dh-fl-loading .table-wrap { opacity: .55; transition: opacity .15s; }
+
+/* 2.4: Übersicht */
+.dh-ov { display: flex; flex-direction: column; gap: var(--sp-3); }
+.dh-ov-hero { padding: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-3); }
+.dh-ov-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: var(--sp-3); align-items: start; }
+.dh-ov-card { padding: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
+.dh-ov-title { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
+.dh-ov-title > svg { color: var(--accent-text); flex: none; }
+.dh-ov-list { display: flex; flex-direction: column; gap: 1px; margin: 0 calc(var(--sp-2) * -1); }
+.dh-ov-row { display: flex; align-items: center; gap: var(--sp-2); width: 100%; border: 0; background: none; color: inherit; font: inherit; font-size: var(--fs-sm); padding: var(--sp-2); border-radius: var(--r-sm); cursor: pointer; text-align: left; }
+.dh-ov-row:hover, .dh-ov-file:hover { background: var(--surface-2); }
+.dh-ov-row:focus-visible, .dh-ov-pill:focus-visible { outline: 2px solid var(--accent-ring, var(--accent)); outline-offset: 1px; }
+.dh-ov-file { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-1) var(--sp-2); border-radius: var(--r-sm); font-size: var(--fs-sm); min-width: 0; }
+.dh-ov-file > svg { flex: none; }
+.dh-ov-fmain { display: flex; flex-direction: column; min-width: 0; }
+.dh-ov-big { font-size: var(--fs-xl, 1.5rem); font-weight: 650; font-variant-numeric: tabular-nums; color: var(--ok-text, var(--ok)); line-height: 1.1; }
+.dh-ov-split { display: flex; flex-direction: column; gap: var(--sp-1); }
+.dh-ov-pill { display: flex; align-items: center; gap: var(--sp-2); width: 100%; border: 1px solid var(--line); background: var(--surface-2); color: inherit; font: inherit; font-size: var(--fs-sm); padding: var(--sp-2) var(--sp-3); border-radius: var(--r-sm); cursor: pointer; text-align: left; text-decoration: none; }
+.dh-ov-pill:hover { border-color: var(--accent); }
+.dh-ov-pill > svg:first-child { color: var(--ok-text, var(--ok)); flex: none; }
+.dh-ov-maybe > svg:first-child { color: var(--warn-text, var(--warn)); }
+.dh-ov-skel { height: calc(var(--sp-8) * 3); }
+
+/* 2.4: Papierkorb */
+.dh-bin { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
+.dh-bin-head { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); flex-wrap: wrap; }
+.dh-bin-total { font-size: var(--fs-lg, 1.15rem); font-variant-numeric: tabular-nums; }
+.dh-bin-hint { display: flex; align-items: center; gap: var(--sp-2); padding: 0 var(--sp-1); }
+.dh-bin-date { width: 150px; white-space: nowrap; }
+.dh-bin-acts { width: 84px; text-align: right; white-space: nowrap; }
 .dh-fl-scopeico { display: grid; place-items: center; width: calc(var(--sp-8) + var(--sp-1)); height: calc(var(--sp-8) + var(--sp-1)); border-radius: var(--r-md); background: var(--accent-soft); color: var(--accent-text); flex: none; }
 .dh-fl-scopemain { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .dh-fl-toolbar { display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-3); align-items: center; }

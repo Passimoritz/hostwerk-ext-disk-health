@@ -370,7 +370,10 @@ function activate(host) {
   // 2.0: Teil „Belegung“ (früher Erweiterung „Speicher je Dienst“) – Verlauf des Füllstands im Server-Teil
   require('./usage').mount(host);
   // 2.2: Teil „Dateien“ – alle Dateien in Hostwerks Bereichen, nach Dienst (server/files.js)
-  try { require('./files').mount(host); } catch (e) { if (host.log) host.log('files:', e.message); }
+  let files = null;
+  try { files = require('./files').mount(host); } catch (e) { if (host.log) host.log('files:', e.message); }
+  // 2.4: Teil „Papierkorb“ – der Windows-Papierkorb (server/bin.js), Ordnergrößen aus dem Datei-Index
+  try { require('./bin').mount(host, files); } catch (e) { if (host.log) host.log('bin:', e.message); }
 }
 
 function deactivate() { active = null; }
