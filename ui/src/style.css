@@ -141,9 +141,6 @@
 .dh-fl-pad { padding: var(--sp-5) var(--sp-4); }
 .dh-fl-stackcol { display: flex; flex-direction: column; gap: var(--sp-3); }
 .dh-fl-none { padding: var(--sp-2) var(--sp-3); }
-.spin { animation: dh-spin 1s linear infinite; }
-@keyframes dh-spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
 
 /* Belegung */
 .dh-fl-total { display: flex; align-items: baseline; gap: var(--sp-2); flex-wrap: wrap; }

@@ -197,7 +197,7 @@ function UsageCard({ sum, curG, type, onType, onRescan }) {
             ? t('Every file on the fixed drives of this computer, sorted by who it belongs to: Hostwerk’s folders, games (Steam, Epic, GOG, Xbox …), programs and tools (names and publishers from Windows’ list of installed programs), your personal folders, the system and other folders. Read again every six hours and whenever you press the button; after a restart the last list is there at once.')
             : t('Every file in Hostwerk’s folders – the same ones as under Files. Switch on “Whole drives” in the settings of this extension to see the whole computer.')}</InfoTip>
         </span>
-        <button type="button" className="btn ghost xs icon" title={t('Read again')} aria-label={t('Read again')} disabled={sum.scanning} onClick={onRescan}><RefreshCw size={13} className={sum.scanning ? 'spin' : undefined} /></button>
+        <button type="button" className="btn ghost xs icon" title={t('Read again')} aria-label={t('Read again')} disabled={sum.scanning} onClick={onRescan}><RefreshCw size={13} className={sum.scanning ? 'hw-spin' : undefined} /></button>
       </div>
       {sum.drives && sum.drives.length > 0 && <div className="dh-fl-drives">{sum.drives.map((d) => <DriveBar key={d.path} d={d} />)}</div>}
       <div className="dh-fl-sub">
@@ -635,7 +635,7 @@ function ScanProgress({ p, first }) {
   return (
     <div className="card dh-fl-scan" role="status">
       <div className="dh-fl-line">
-        <RefreshCw size={16} className="spin" aria-hidden="true" />
+        <RefreshCw size={16} className="hw-spin" aria-hidden="true" />
         <b className="grow">{first ? t('Hostwerk is reading the files for the first time …') : t('Reading the files again …')}</b>
         {pct != null && <span className="small muted dh-fl-num">{pct < 1 ? '< 1 %' : `${Math.round(pct)} %`}</span>}
       </div>
