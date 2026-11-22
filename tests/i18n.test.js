@@ -22,9 +22,12 @@ function uiTexts() {
   for (const m of src.matchAll(/\b(?:title|text|tipTitle)="([^"]+)"/g)) add(m[1]);
   for (const m of src.matchAll(/>([^<>{}]*[A-Za-z][^<>{}]*)</g)) if (!/[=;()]|=>/.test(m[1])) add(m[1]);
   // LEVEL/MEDIA/REASON: label: '…' and 'key': '…' inside the maps
+  // jede Stelle mit diesem Namen – REASON gibt es in index.jsx UND files.jsx (vorher wurde nur die erste geprüft)
   for (const name of ['LEVEL', 'MEDIA', 'REASON', 'KIND', 'PART', 'TYPE', 'GROUP', 'LABEL', 'ROLE']) {
-    const block = src.slice(src.indexOf(`const ${name} = {`), src.indexOf('};', src.indexOf(`const ${name} = {`)));
-    for (const m of block.matchAll(/(?:label: |: )'((?:[^'\\]|\\.)*)'/g)) add(m[1]);
+    for (let at = src.indexOf(`const ${name} = {`); at >= 0; at = src.indexOf(`const ${name} = {`, at + 1)) {
+      const block = src.slice(at, src.indexOf('};', at));
+      for (const m of block.matchAll(/(?:label: |: )'((?:[^'\\]|\\.)*)'/g)) add(m[1]);
+    }
   }
   return [...out];
 }

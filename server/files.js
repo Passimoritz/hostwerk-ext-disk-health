@@ -276,6 +276,13 @@ function createFiles(io) {
   let progress = { files: 0, dirs: 0, dir: null };
   let dups = { at: null, running: false, groups: [], waste: 0, error: null, checked: 0 };
   const touch = () => { version++; sumCache = null; };
+  // Beim Ausschalten/Aktualisieren der Erweiterung: laufendes Einlesen und Vergleichen beenden (sonst liest das alte Modul
+  // noch minutenlang alle Laufwerke, während das neue von vorn beginnt)
+  let stopped = false;
+  // „Einlesen abbrechen“ (nur dieses Einlesen): danach liest Hostwerk nicht von selbst neu, bis der Nutzer es anstößt
+  // oder die übliche Frist (RESCAN_MS) seit dem Abbruch um ist
+  let cancelled = false;
+  let cancelledAt = 0;
 
   /** Hostwerks Bereiche: vorhanden, ohne Docker, ohne doppelte Pfade. */
   const rootsNow = () => {
@@ -303,6 +310,8 @@ function createFiles(io) {
 
   function scan() {
     if (scanning) return scanning;
+    if (stopped) return Promise.resolve(index);
+    cancelled = false;
     scanning = (async () => {
       const roots = rootsNow();
       const skip = (io.skip || []).filter(Boolean).map(norm);
@@ -404,6 +413,7 @@ function createFiles(io) {
       let lastYield = Date.now();
       /** Einen Ordner lesen: Unterordner anhängen (zuordnen), Dateien messen. */
       const visit = async ([dir, di, segs, t], stack) => {
+        if (stopped || cancelled) return;
         progress.dir = dir;
         let ents;
         try { ents = await fs.promises.readdir(dir, { withFileTypes: true }); } catch { return; }
@@ -456,6 +466,7 @@ function createFiles(io) {
           pump();
         });
       }
+      if (stopped || cancelled) return index; // abgebrochen: nichts Halbes übernehmen oder speichern
       // Reste: App-Daten einer Anwendung, die Windows nicht mehr als installiert kennt
       // nur echte Programm-Daten (AppData, ProgramData) – Werkzeuge in Punkt-Ordnern (.cache, .npm …) haben keinen Eintrag in Windows
       for (const G of groups) G.leftover = !!(installed.length && G.cat === 'apps' && G.kind === 'program' && /^app:/.test(G.id) && !G.installed && G.id !== 'app:storeapps');
@@ -555,7 +566,7 @@ function createFiles(io) {
 
   /** Übersicht: Gruppen mit Größen je Art und Rolle, Laufwerke, Summen – nur neu gerechnet, wenn sich etwas geändert hat. */
   function summary() {
-    const base = { scanning: !!scanning, progress: { ...progress }, max: MAX, typeIds: TYPE_IDS, roleIds: ROLE_IDS };
+    const base = { scanning: !!scanning && !cancelled, cancelling: !!scanning && cancelled, progress: { ...progress }, max: MAX, typeIds: TYPE_IDS, roleIds: ROLE_IDS };
     if (!index) return { ...base, at: null, mode: null, groups: [], drives: [], totals: { files: 0, bytes: 0, types: {}, roles: {} }, truncated: false };
     if (!sumCache || sumCache.version !== version) {
       const gs = index.groups.map((g) => ({
@@ -758,7 +769,11 @@ function createFiles(io) {
 
   /** Löschen: Hostwerks Bereiche → Hostwerks Papierkorb, sonst Windows-Papierkorb. Fehler je Datei. */
   async function remove(items) {
-    const todo = (Array.isArray(items) ? items : []).map((x) => (x && typeof x.path === 'string' ? x.path : null)).filter(Boolean).slice(0, 5000);
+    // Jeder Pfad nur einmal – doppelt geschickt zog drop() die Größe sonst zweimal von Ordnern und Laufwerken ab
+    // (unter Windows auch in anderer Groß-/Kleinschreibung)
+    const uniq = new Map();
+    for (const x of Array.isArray(items) ? items : []) if (x && typeof x.path === 'string' && x.path && !uniq.has(norm(x.path))) uniq.set(norm(x.path), x.path);
+    const todo = [...uniq.values()].slice(0, 5000);
     const done = []; const failed = []; const machine = [];
     const found = findMany(todo);
     for (const p of todo) {
@@ -794,7 +809,9 @@ function createFiles(io) {
     const n = String(name || '').trim();
     const i = find(p);
     if (i < 0) throw fail('Not in the list of files', 404);
-    if (!n || /[\\/:*?"<>|]/.test(n) || n === '.' || n === '..') throw fail('Invalid name', 400);
+    if (!n || /[\\/:*?"<>|\x00-\x1f]/.test(n) || n === '.' || n === '..') throw fail('Invalid name', 400);
+    // Windows verschluckt Punkt/Leerzeichen am Ende (die Datei hieße dann anders als im Index) und sperrt Gerätenamen
+    if (win && /[. ]$|^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i.test(n)) throw fail('Windows does not allow this name – no dot or space at the end, no names like CON or NUL', 400);
     const lock = lockOf(i);
     if (lock) throw fail(LOCK_TEXT[lock], 403);
     const a = fullOf(i);
@@ -829,6 +846,7 @@ function createFiles(io) {
     const bucket = async (list0, quick) => {
       const by = new Map();
       for (const i of list0) {
+        if (stopped) break;
         try { const h = await hashFile(fullOf(i), size, quick); const x = by.get(h); if (x) x.push(i); else by.set(h, [i]); } catch { /* weg oder gesperrt */ }
         dups.checked++;
       }
@@ -858,7 +876,7 @@ function createFiles(io) {
         const cands = [...bySize.entries()].filter(([, l]) => l.length > 1).sort((a, b) => b[0] * (b[1].length - 1) - a[0] * (a[1].length - 1));
         const groups = [];
         for (const [size, l] of cands) {
-          if (groups.length >= DUP_MAX_GROUPS) break;
+          if (groups.length >= DUP_MAX_GROUPS || stopped) break;
           for (const g of await groupBySum(l, size)) groups.push({ size, files: g.map(item) });
         }
         groups.sort((a, b) => b.size * (b.files.length - 1) - a.size * (a.files.length - 1));
@@ -872,11 +890,16 @@ function createFiles(io) {
   function known(p) { const i = find(p); if (i < 0) throw fail('Not in the list of files', 404); return fullOf(i); }
   function knownDir(p) { if (!index) throw fail('No list of files yet', 404); const di = index.dirMap.get(norm(String(p || ''))); if (di === undefined) throw fail('Folder not in the list', 404); return index.dirs[di]; }
 
+  /** Erweiterung aus/aktualisiert: Einlesen und Vergleichen enden beim nächsten Ordner bzw. der nächsten Datei, nichts wird mehr gespeichert. */
+  function stop() { stopped = true; }
+  /** Laufendes Einlesen abbrechen (Knopf „Einlesen abbrechen“): die bisherige Liste bleibt, nichts Halbes wird gespeichert. */
+  function cancelScan() { if (!scanning) return false; cancelled = true; cancelledAt = now(); return true; }
+
   return {
-    scan, load, save, summary, list, csv, tree, remove, rename, findDuplicates, known, knownDir, dirSize, parseQuery,
+    scan, load, save, stop, cancelScan, summary, list, csv, tree, remove, rename, findDuplicates, known, knownDir, dirSize, parseQuery,
     duplicates: () => dups,
     ready: () => !!index,
-    isStale: () => !index || now() - index.at > RESCAN_MS,
+    isStale: () => (!index || now() - index.at > RESCAN_MS) && !(cancelledAt && now() - cancelledAt < RESCAN_MS),
   };
 }
 
@@ -972,6 +995,7 @@ function mount(host) {
     res.setHeader('Content-Disposition', `attachment; filename="files-${new Date().toISOString().slice(0, 10)}.csv"`);
     res.send(files.csv(req.query || {}));
   }));
+  r.post('/disk-health/files/cancel', (req, res) => { files.cancelScan(); res.json(files.summary()); });
   r.post('/disk-health/files/rescan', (req, res) => { files.scan().catch(() => {}); res.json(files.summary()); });
   r.post('/disk-health/files/delete', safe(async (req, res) => res.json(await files.remove((req.body || {}).items))));
   r.post('/disk-health/files/rename', safe((req, res) => res.json(files.rename(req.body || {}))));
@@ -994,7 +1018,8 @@ function mount(host) {
   const first = setTimeout(kick, 120000);
   const timer = setInterval(kick, RESCAN_MS);
   for (const x of [first, timer]) if (x && x.unref) x.unref();
-  host.on('shutdown', () => { clearTimeout(first); clearInterval(timer); });
+  // „shutdown“ kommt auch beim Ausschalten und vor einem Update (extnative deactivate) – dann laufende Arbeit beenden
+  host.on('shutdown', () => { clearTimeout(first); clearInterval(timer); files.stop(); });
   return files;
 }
 

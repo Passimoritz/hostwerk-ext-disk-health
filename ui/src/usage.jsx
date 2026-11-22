@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { HardDrive, FolderOpen, RefreshCw, Trash2, Archive } from 'lucide-react';
-import { useApi, fmtDate } from '@hostwerk/api';
+import { useApi, useStore, fmtDate } from '@hostwerk/api';
 import { Btn, Empty, Loading, Callout, InfoTip, TileEmpty } from '@hostwerk/ui';
 import { t } from '@hostwerk/i18n';
 import * as Kit from '@hostwerk/kit';
@@ -12,11 +12,17 @@ import D from '../../lib/usage.js';
  * zum Aufräumen. Die Größen zählt Hostwerk (/system/disk-usage, alle 10 Minuten), den Verlauf schreibt der Server-Teil
  * stündlich mit (server/usage.js). Texte Englisch, Deutsch aus locales/de.json.
  */
-const KIND = { minecraft: 'Minecraft', game: 'Game server', web: 'Web server', db: 'Database', app: 'App', docker: 'Docker', mail: 'Mail server', other: 'Other' };
+const KIND = { mc: 'Minecraft', minecraft: 'Minecraft', game: 'Game server', vm: 'Virtual machine', web: 'Web server', db: 'Database', app: 'App', docker: 'Docker', mail: 'Mail server', other: 'Other' };
 const PART = { Server: 'Server', Sicherungen: 'Backups', Daten: 'Data', Projekt: 'Project', Dokumente: 'Documents', 'Docker-Volume': 'Docker volume', Volumes: 'Volumes', Spielstände: 'Saves' };
 // Sprache der Oberfläche (getLang aus @hostwerk/kit, ältere Hostwerk-Versionen: Deutsch) – für Zahlen und Größen
 const lang = () => (typeof Kit.getLang === 'function' && Kit.getLang() === 'en' ? 'en' : 'de');
-const kindLabel = (k) => t(KIND[k] || KIND.other);
+// Feste Namen für die bekannten Arten; neue Arten (aus anderen Erweiterungen) heißen wie in Hostwerks Arten-Verzeichnis –
+// sonst stünden mehrere als „Sonstiges“ nebeneinander. Ohne Eintrag dort: die Kennung selbst.
+const kindLabelIn = (ov) => (k) => {
+  if (k && k !== 'other' && KIND[k]) return t(KIND[k]);
+  const def = typeof Kit.kindDef === 'function' ? Kit.kindDef(ov, k) : null;
+  return D.kindName(def, lang()) || (k && k !== 'other' ? k : t(KIND.other));
+};
 const partLabel = (p) => (PART[p] ? t(PART[p]) : p);
 
 /** Balken mit Wert für Bildschirmleser. */
@@ -47,6 +53,8 @@ export function UsagePanel() {
   const u = useApi('/system/disk-usage', [], { live: false });
   const h = useApi('/disk-health/usage-history', [], { live: false });
   const [kind, setKind] = useState('');
+  const ov = useStore((s) => s.overview);
+  const kindLabel = kindLabelIn(ov);
   const d = u.data;
   // Hostwerk zählt gerade nach: in ein paar Sekunden noch einmal fragen
   useEffect(() => {

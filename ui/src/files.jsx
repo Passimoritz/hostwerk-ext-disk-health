@@ -72,7 +72,13 @@ const REASON = {
   exists: 'A file with this name already exists',
   name: 'Invalid name',
   folder: 'Folder not in the list',
+  nodelete: 'Deleting is not available',
+  notallowed: 'Not allowed',
+  noanswer: 'No answer from Windows',
+  winname: 'Windows does not allow this name – no dot or space at the end, no names like CON or NUL',
 };
+/** Namen, die Windows nicht (so) anlegt: Punkt/Leerzeichen am Ende verschluckt es, Gerätenamen sind gesperrt. */
+const WIN_BAD_NAME = /[. ]$|^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i;
 const KNOWN_TEXT = new Set([...Object.values(REASON), ...Object.values(LABEL)]);
 const SIZE = { any: {}, s10: { minSize: 10 * 1048576 }, s100: { minSize: 100 * 1048576 }, s1g: { minSize: 1073741824 } };
 const AGE = { any: {}, old1: { olderThan: 365 }, old2: { olderThan: 730 }, new7: { newerThan: 7 }, new30: { newerThan: 30 } };
@@ -630,7 +636,7 @@ function ScopeCard({ g, onClose, onUninstall, onTree, onShowRole }) {
 
 /* ---------------- Einlesen ---------------- */
 
-function ScanProgress({ p, first }) {
+function ScanProgress({ p, first, onCancel }) {
   const pct = p && p.of ? Math.min(99, (p.bytes / p.of) * 100) : null;
   return (
     <div className="card dh-fl-scan" role="status">
@@ -638,6 +644,7 @@ function ScanProgress({ p, first }) {
         <RefreshCw size={16} className="hw-spin" aria-hidden="true" />
         <b className="grow">{first ? t('Hostwerk is reading the files for the first time …') : t('Reading the files again …')}</b>
         {pct != null && <span className="small muted dh-fl-num">{pct < 1 ? '< 1 %' : `${Math.round(pct)} %`}</span>}
+        {onCancel && <Btn className="sm ghost" icon={X} onClick={onCancel} title={t('Stops reading – the last list of files stays.')}>Stop reading</Btn>}
       </div>
       <Progress value={pct || 0} indeterminate={pct == null} />
       <div className="small muted">
@@ -763,14 +770,15 @@ export function FilesPanel() {
     if (what === 'rename') {
       const name = await promptDialog({
         title: t('Rename'), label: t('New name'), value: x.name, confirm: t('Rename'),
-        validate: (v) => (!String(v || '').trim() ? t('Enter a name') : /[\\/:*?"<>|]/.test(v) ? t('Use a name without special characters such as / or :') : null),
+        validate: (v) => (!String(v || '').trim() ? t('Enter a name') : /[\\/:*?"<>|\x00-\x1f]/.test(v) ? t('Use a name without special characters such as / or :') : WIN_BAD_NAME.test(String(v).trim()) ? t(REASON.winname) : null),
       });
-      if (!name || name === x.name) return undefined;
+      if (!name || name.trim() === x.name) return undefined;
       try { await post('/disk-health/files/rename', { path: x.path, name }); toast.success('Renamed'); after(); } catch (e) { toast.error(errText(e)); }
     }
     return undefined;
   };
   const rescan = async () => { try { s.setData(await post('/disk-health/files/rescan')); } catch (e) { toast.error(errText(e)); } };
+  const cancelScan = async () => { try { s.setData(await post('/disk-health/files/cancel')); toast(t('Reading stopped – the last list of files stays.')); } catch (e) { toast.error(errText(e)); } };
   const exportCsv = () => { location.href = apiUrl(`/api/disk-health/files/export?${query}`); };
   const pickGroup = (id) => { setGroup(id); setDir(null); setTdir(null); };
   /** Aus der Übersicht: Liste mit diesen Filtern. */
@@ -788,7 +796,7 @@ export function FilesPanel() {
   if (!sum) return <Loading />;
   if (!sum.at) {
     return sum.scanning
-      ? <ScanProgress p={sum.progress} first />
+      ? <ScanProgress p={sum.progress} first onCancel={cancelScan} />
       : <div className="card dh-fl-pad"><Empty icon={Files} title="No list of files yet" text="Hostwerk reads every file on the drives once – sorted by program, game, service and folder. On a full drive this takes a few minutes." action={<Btn className="primary" icon={RefreshCw} onClick={rescan}>Read the files</Btn>} /></div>;
   }
   const curG = group ? byId.get(group) : null;
@@ -807,7 +815,7 @@ export function FilesPanel() {
       </aside>
 
       <div className="dh-fl-main">
-        {sum.scanning && <ScanProgress p={sum.progress} />}
+        {sum.scanning && <ScanProgress p={sum.progress} onCancel={cancelScan} />}
 
         {curG && <ScopeCard g={curG} onClose={() => pickGroup('')} onUninstall={() => uninstall(curG)} onTree={() => { setTdir(null); setView('tree'); }} onShowRole={(r) => { setRole(r); setView('list'); }} />}
 

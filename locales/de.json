@@ -253,6 +253,7 @@
   "App": "App",
   "Docker": "Docker",
   "Mail server": "Mailserver",
+  "Virtual machine": "Virtuelle Maschine",
   "Other": "Sonstiges",
   "Server": "Server",
   "Backups": "Sicherungen",
@@ -426,6 +427,11 @@
   "Not in the list of files": "Nicht in der Liste der Dateien",
   "Could not be moved to the recycle bin": "Ließ sich nicht in den Papierkorb legen",
   "Invalid name": "Ungültiger Name",
+  "A file with this name already exists": "Eine Datei mit diesem Namen gibt es schon",
+  "Deleting is not available": "Löschen ist hier nicht möglich",
+  "Not allowed": "Nicht erlaubt",
+  "No answer from Windows": "Keine Antwort von Windows",
+  "Windows does not allow this name – no dot or space at the end, no names like CON or NUL": "Diesen Namen erlaubt Windows nicht – kein Punkt oder Leerzeichen am Ende, keine Namen wie CON oder NUL",
   "Folder not in the list": "Ordner nicht in der Liste",
   "Game data": "Spieldaten",
   "Checking the drive condition is switched off": "Die Prüfung des Laufwerkszustands ist aus",
@@ -530,5 +536,8 @@
   "Not in the recycle bin anymore": "Nicht mehr im Papierkorb",
   "List the recycle bin first": "Erst den Papierkorb einlesen",
   "Can be freed": "Lässt sich freigeben",
-  "Caches, temporary files and crash reports. Deleting them does no harm – apps create or download them again when needed (big model or game caches then take a while).": "Zwischenspeicher, temporäre Dateien und Absturzberichte. Löschen schadet nicht – Apps legen sie bei Bedarf neu an oder laden sie neu (große Modell- oder Spiel-Caches dauern dann eine Weile)."
+  "Caches, temporary files and crash reports. Deleting them does no harm – apps create or download them again when needed (big model or game caches then take a while).": "Zwischenspeicher, temporäre Dateien und Absturzberichte. Löschen schadet nicht – Apps legen sie bei Bedarf neu an oder laden sie neu (große Modell- oder Spiel-Caches dauern dann eine Weile).",
+  "Stop reading": "Einlesen abbrechen",
+  "Stops reading – the last list of files stays.": "Hält das Einlesen an – die bisherige Liste der Dateien bleibt.",
+  "Reading stopped – the last list of files stays.": "Einlesen abgebrochen – die bisherige Liste der Dateien bleibt."
 }

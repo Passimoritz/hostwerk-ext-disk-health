@@ -278,7 +278,7 @@ function DriveCard({ d, limits, onRefresh, onAdmin, canElevate }) {
               <b>Only the health status so far</b>
               <span>Temperature, wear and error counters need administrator rights.</span>
             </div>
-            {canElevate && <Btn className="sm" icon={ShieldCheck} onClick={onAdmin}>Check with admin rights</Btn>}
+            {/* Kein eigener Knopf je Karte: „Mit Administratorrechten prüfen“ steht schon in der Statusleiste oben (und im Menü der Karte) */}
           </div>
         )}
         {open && <div id={detailsId}><AttrTable d={d} /></div>}
@@ -397,9 +397,9 @@ function HealthPanel() {
           <StatusBar d={d} drives={drives} busy={busy} onRefresh={refresh} onAdmin={adminCheck} onSchedule={setSchedule} />
           <div className="dh-hints">
             {d.error && <Hint icon={AlertTriangle} tone="warn">{t('The drives could not be read: {error}', { error: d.error })}</Hint>}
+            {/* Ohne eigenen Knopf: „Mit Administratorrechten prüfen“ steht direkt darüber in der Statusleiste (vorher zweimal untereinander) */}
             {needsAdmin && d.canElevate && (
-              <Hint action={<Btn className="sm primary" icon={ShieldCheck} busy={d.adminBusy === 'check'} onClick={adminCheck}>Check with admin rights</Btn>}
-                tipTitle={t('Why administrator rights?')}
+              <Hint tipTitle={t('Why administrator rights?')}
                 tip={d.platform === 'win32' ? t('Without administrator rights Windows only shows whether a drive is healthy. Temperature, wear and error counters are read in a single check – Windows asks for permission once. Hostwerk itself keeps running without admin rights.') : t('smartctl needs root rights for most drives. Your system asks for your password once; Hostwerk itself keeps running without root.')}>
                 Temperature, wear and errors need one check with administrator rights.
               </Hint>

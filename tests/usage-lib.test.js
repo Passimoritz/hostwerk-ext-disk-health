@@ -33,6 +33,11 @@ test('Klickziele je Dienst', () => {
   assert.strictEqual(D.route({ kind: 'minecraft', id: 'survival' }), '/mc/survival/files');
   assert.strictEqual(D.route({ kind: 'minecraft', id: 'survival' }, 'Sicherungen'), '/mc/survival/backups');
   assert.strictEqual(D.route({ kind: 'db', id: 'x' }, 'Sicherungen'), '/sicherungen/staende');
+  // Minecraft-Erweiterung meldet „mc“, VMs „vm“ (Hostwerk zählt die Dienst-Arten der Erweiterungen mit)
+  assert.strictEqual(D.route({ kind: 'mc', id: 'survival' }), '/mc/survival/files');
+  assert.strictEqual(D.route({ kind: 'mc', id: 'survival' }, 'Sicherungen'), '/mc/survival/backups');
+  assert.strictEqual(D.route({ kind: 'vm', id: 'ubuntu-1' }), '/vms/ubuntu-1');
+  assert.strictEqual(D.route({ kind: 'vm', id: '../x' }), '/vms');
   assert.strictEqual(D.route({ kind: 'web', id: '../x' }), '/web');
   assert.strictEqual(D.route({ kind: 'game', id: 'v' }), '/spiele/v');
   assert.strictEqual(D.route({ kind: 'game', id: '../x' }), '/ext/game-servers');
@@ -51,10 +56,19 @@ test('Belegung je Art für den Filter: feste Reihenfolge, Spiele-Server und Dock
   const k = D.byKind([{ kind: 'docker', bytes: 5 }, { kind: 'minecraft', bytes: 3 }, { kind: 'docker', bytes: 1 }, { kind: 'game', bytes: 7 }, { kind: 'neu', bytes: 1 }, { kind: 'web', bytes: 0 }]);
   assert.deepStrictEqual(k.map((x) => [x.kind, x.bytes, x.count]), [['minecraft', 3, 1], ['game', 7, 1], ['docker', 6, 2], ['neu', 1, 1]]);
   assert.deepStrictEqual(D.byKind(null), []);
+  assert.deepStrictEqual(D.byKind([{ kind: 'neu', bytes: 1 }, { kind: 'vm', bytes: 2 }, { kind: 'mc', bytes: 3 }]).map((x) => x.kind), ['mc', 'vm', 'neu']);
 });
 test('jede Art und jeder Teil der Zählung hat einen Namen (ui/src/usage.jsx, Deutsch über locales/de.json)', () => {
   const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'ui', 'src', 'usage.jsx'), 'utf8');
   const block = (name) => src.slice(src.indexOf(`const ${name} = {`), src.indexOf('};', src.indexOf(`const ${name} = {`)));
   for (const kind of D.KINDS) assert.ok(new RegExp(`\\b${kind}: '`).test(block('KIND')), `KIND.${kind}`);
   for (const p of ['Server', 'Sicherungen', 'Daten', 'Projekt', 'Dokumente', 'Docker-Volume']) assert.ok(block('PART').includes(`${p.includes('-') ? `'${p}'` : p}: '`), `PART.${p}`);
+});
+
+test('Art-Name aus Hostwerks Arten-Verzeichnis (one vor label, Sprache, Rückfall null)', () => {
+  assert.strictEqual(D.kindName({ one: { de: 'VPN-Tunnel', en: 'VPN tunnel' }, label: { de: 'VPN', en: 'VPN' } }, 'en'), 'VPN tunnel');
+  assert.strictEqual(D.kindName({ label: { de: 'Spiele' } }, 'en'), 'Spiele', 'nur Deutsch vorhanden');
+  assert.strictEqual(D.kindName({ label: 'Mail' }, 'de'), 'Mail');
+  assert.strictEqual(D.kindName(null, 'de'), null);
+  assert.strictEqual(D.kindName({}, 'de'), null);
 });

@@ -249,6 +249,65 @@ test('Umbenennen im selben Ordner; ungültige Namen, belegte Ziele und Unbekannt
   assert.strictEqual(files.known(P('htdocs/index.html')), P('htdocs/index.html'));
 });
 
+test('Umbenennen unter Windows: Punkt/Leerzeichen am Ende und Gerätenamen abgelehnt, Datei bleibt', WIN_ONLY, async () => {
+  const { files, P } = hostwerkOnly();
+  await files.scan();
+  // (Leerzeichen am Ende schneidet rename() ohnehin ab)
+  for (const name of ['logo.', 'logo. ', 'CON', 'nul.txt', 'Com1.png', 'a\u0001b']) {
+    assert.throws(() => files.rename({ path: P('htdocs/img/logo.png'), name }), /Invalid name|Windows does not allow/, name);
+  }
+  assert.ok(fs.existsSync(P('htdocs/img/logo.png')));
+  assert.strictEqual(files.rename({ path: P('htdocs/img/logo.png'), name: 'console.png' }).path, P('htdocs/img/console.png'), 'nur genau der Gerätename ist gesperrt');
+});
+
+test('Löschen: derselbe Pfad doppelt (auch andere Schreibweise) zählt nur einmal – Summen stimmen', WIN_ONLY, async () => {
+  const { files, recycled, P } = machine();
+  await files.scan();
+  const before = files.summary().totals.bytes;
+  const p = P('Users/bob/Downloads/movie.mp4');
+  const r = await files.remove([{ path: p }, { path: p }, { path: p.toUpperCase() }]);
+  assert.strictEqual(r.done, 1);
+  assert.strictEqual(r.bytes, 30000);
+  assert.deepStrictEqual(recycled, [p]);
+  assert.strictEqual(files.summary().totals.bytes, before - 30000);
+});
+
+test('stop(): laufendes Einlesen endet ohne halben Index, danach startet keins mehr', async () => {
+  const { files } = hostwerkOnly();
+  const running = files.scan();
+  files.stop();
+  assert.strictEqual(await running, null, 'abgebrochen: kein (halber) Index');
+  assert.strictEqual(files.ready(), false);
+  assert.strictEqual(await files.scan(), null, 'nach stop() wird nicht neu eingelesen');
+  assert.strictEqual(files.summary().scanning, false);
+});
+
+test('Einlesen abbrechen: bisherige Liste bleibt, kein Neu-Einlesen von selbst, auf Wunsch wieder möglich', async () => {
+  const { files } = hostwerkOnly();
+  assert.strictEqual(files.cancelScan(), false, 'ohne laufendes Einlesen nichts abzubrechen');
+  await files.scan();
+  const n = files.summary().totals.files;
+  const running = files.scan(); // neues Einlesen
+  assert.ok(running);
+  assert.strictEqual(files.cancelScan(), true);
+  assert.strictEqual(files.summary().scanning, false, 'gilt sofort als beendet');
+  await running;
+  assert.strictEqual(files.summary().totals.files, n, 'alte Liste bleibt');
+  assert.strictEqual(files.isStale(), false, 'nach dem Abbruch liest Hostwerk nicht gleich wieder von selbst');
+  await files.scan();
+  assert.strictEqual(files.summary().totals.files, n, 'neu einlesen geht wieder');
+});
+
+test('stop() nach dem Einlesen: Index bleibt lesbar, Neu-Einlesen behält ihn', async () => {
+  const { files, P } = hostwerkOnly();
+  await files.scan();
+  const n = files.summary().totals.files;
+  files.stop();
+  await files.scan();
+  assert.strictEqual(files.summary().totals.files, n);
+  assert.strictEqual(files.known(P('htdocs/index.html')), P('htdocs/index.html'));
+});
+
 test('Doppelte: gleicher Inhalt ab der Mindestgröße, gleiche Größe mit anderem Inhalt nicht', async () => {
   const { base, files, P } = hostwerkOnly();
   fs.writeFileSync(path.join(base, 'htdocs', 'same-size.bin'), Buffer.alloc(5000, 9));

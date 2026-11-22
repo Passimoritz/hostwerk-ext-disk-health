@@ -39,7 +39,10 @@
 .dh-card { min-width: 0; display: flex; flex-direction: column; }
 .dh-card.dh-lv-warn { border-color: var(--warn); }
 .dh-card.dh-lv-err { border-color: var(--err); }
-.dh-title { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+/* Kopf darf umbrechen: der Name behält mindestens ~12rem, Seriennummer, Knopf und Abzeichen rutschen sonst in die nächste Zeile
+   (vorher schrumpfte ein Name ohne Leerzeichen wie „WDC WD40EFRX-68N32N0“ bei 1024 px auf ein Zeichen Breite) */
+.dh-card .card-head { flex-wrap: wrap; row-gap: var(--sp-2); }
+.dh-title { min-width: min(12rem, 100%); flex: 1 1 12rem; display: flex; flex-direction: column; gap: 2px; }
 .dh-title h3 { overflow-wrap: anywhere; }
 .dh-body { gap: var(--sp-3); }
 
