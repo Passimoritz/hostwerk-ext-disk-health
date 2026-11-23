@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.5.0
+
+- Files: “Stop reading” ends a running scan – the last list of files stays. Switching the extension off or updating it now also stops reading the drives. / Dateien: „Einlesen abbrechen“ beendet ein laufendes Einlesen – die bisherige Liste der Dateien bleibt. Ausschalten oder Aktualisieren der Erweiterung beendet das Einlesen der Laufwerke jetzt ebenfalls.
+- Used space: Minecraft servers and virtual machines get their own name and link to their page instead of “Other”; kinds from other extensions are named as in Hostwerk. / Belegung: Minecraft-Server und virtuelle Maschinen haben ihren eigenen Namen und führen zu ihrer Seite statt „Sonstiges“; Arten aus anderen Erweiterungen heißen wie in Hostwerk.
+- Fixes: renaming refuses names Windows does not allow (dot or space at the end, CON, NUL …), a path sent twice is only deleted and counted once, the drive card head wraps at 1024 px, the button “Check with admin rights” no longer appears twice, the refresh icon uses Hostwerk’s spin animation. / Behoben: Umbenennen lehnt Namen ab, die Windows nicht erlaubt (Punkt oder Leerzeichen am Ende, CON, NUL …), ein doppelt geschickter Pfad wird nur einmal gelöscht und gezählt, der Kopf der Laufwerkskarte bricht bei 1024 px um, der Knopf „Mit Administratorrechten prüfen“ steht nicht mehr doppelt da, das Aktualisieren-Symbol nutzt Hostwerks Dreh-Animation.
+
 ## 2.4.0
 
 - System → Storage now has four sections on the left: Condition, Used space, Files and Recycle bin (Hostwerk with the new core; older Hostwerk shows Condition and Files). / System → Speicher hat links jetzt vier Abschnitte: Zustand, Belegung, Dateien und Papierkorb (Hostwerk mit neuem Kern; ältere Hostwerk-Versionen zeigen Zustand und Dateien).
